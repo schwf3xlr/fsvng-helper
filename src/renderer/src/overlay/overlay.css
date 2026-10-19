@@ -1,0 +1,148 @@
+@import '@fontsource/golos-text/cyrillic-400.css';
+@import '@fontsource/golos-text/cyrillic-600.css';
+@import '@fontsource/golos-text/latin-400.css';
+@import '@fontsource/golos-text/latin-600.css';
+@import '@fontsource/jetbrains-mono/latin-600.css';
+
+:root {
+  --accent: #e0b04a;
+  --accent-soft: #e0b04a2e;
+  font-family: 'Golos Text', 'Segoe UI', system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  color: #eceae4;
+  -webkit-font-smoothing: antialiased;
+}
+
+html,
+body,
+#root {
+  margin: 0;
+  height: 100%;
+  background: transparent;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Только для просмотра в браузере */
+body.demo {
+  background: linear-gradient(160deg, #1b2533, #0b0f16);
+}
+
+/* Слева под чатом игры, как в макете */
+.stack {
+  position: fixed;
+  left: 28px;
+  top: 34%;
+  width: 360px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  --kind: var(--accent);
+  --kind-soft: var(--accent-soft);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 14px;
+  background: rgba(22, 24, 28, 0.9);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  animation: enter 0.2s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    opacity 0.22s ease,
+    transform 0.22s ease;
+}
+.toast[data-kind='ok'] {
+  --kind: #79c7b5;
+  --kind-soft: #79c7b52e;
+}
+.toast[data-kind='warn'] {
+  --kind: #f08c6c;
+  --kind-soft: #f08c6c2e;
+}
+.toast[data-kind='error'] {
+  --kind: #ff7a7a;
+  --kind-soft: #ff7a7a2e;
+}
+.toast[data-kind='info'] {
+  --kind: #7fb2f0;
+  --kind-soft: #7fb2f02e;
+}
+.toast.leaving {
+  opacity: 0;
+  transform: translateX(-10px);
+}
+
+.toast-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.toast-icon {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  border-radius: 7px;
+  background: var(--kind-soft);
+  color: var(--kind);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.toast-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.toast-title {
+  font-size: 14px;
+  font-weight: 600;
+}
+.toast-text {
+  font-size: 12px;
+  color: #a9adb5;
+  white-space: pre-line;
+}
+.toast-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #a9adb5;
+}
+.toast-hint kbd {
+  display: flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: #262a31;
+  border: 1px solid #3a3f48;
+  color: #eceae4;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 600;
+}
+.toast-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: #2a2e35;
+  overflow: hidden;
+}
+.toast-bar > div {
+  height: 100%;
+  background: var(--kind);
+  transition: width 0.2s ease;
+}
+
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateX(-12px);
+  }
+}

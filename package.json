@@ -1,0 +1,90 @@
+{
+  "name": "fsvng-helper",
+  "productName": "ФСВНГ Helper",
+  "version": "0.2.0",
+  "private": true,
+  "description": "ФСВНГ Helper — отыгровки, памятки и законы поверх GTA V для УФСВНГ на RMRP",
+  "author": "УФСВНГ по АФО",
+  "repository": "github:schwf3xlr/fsvng-helper",
+  "main": "./out/main/index.js",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "ui": "vite --config vite.ui.config.ts",
+    "dist": "electron-vite build && electron-builder --win --publish never",
+    "icon": "electron scripts/make-icon.cjs",
+    "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9",
+    "koffi": "^3.3.3",
+    "node-html-parser": "^9.0.5",
+    "uiohook-napi": "^1.5.5"
+  },
+  "devDependencies": {
+    "@fontsource/golos-text": "^5.3.0",
+    "@fontsource/jetbrains-mono": "^5.3.0",
+    "@fontsource/oswald": "^5.3.0",
+    "@types/node": "^26.6.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3",
+    "electron-vite": "^6.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.4",
+    "zustand": "^5.0.15"
+  },
+  "build": {
+    "appId": "ru.rmrp.fsvng-helper",
+    "productName": "ФСВНГ Helper",
+    "executableName": "fsvng-helper",
+    "directories": {
+      "output": "dist",
+      "buildResources": "resources"
+    },
+    "files": [
+      "out/**",
+      "resources/icon.png",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "**/node_modules/koffi/**",
+      "**/node_modules/@koromix/**",
+      "**/node_modules/uiohook-napi/**"
+    ],
+    "npmRebuild": false,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "resources/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": false,
+      "createDesktopShortcut": true,
+      "shortcutName": "ФСВНГ Helper",
+      "runAfterFinish": true,
+      "deleteAppDataOnUninstall": false,
+      "artifactName": "fsvng-helper-setup-${version}.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "schwf3xlr",
+        "repo": "fsvng-helper",
+        "releaseType": "release"
+      }
+    ]
+  }
+}
