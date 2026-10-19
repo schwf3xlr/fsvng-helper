@@ -1,109 +1,168 @@
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 import type { TabId } from '../../../shared/api'
 import { activeProfile } from '../../../shared/settings'
-import { BindsTab } from './BindsTab'
-import { LawsTab } from './LawsTab'
-import { MemosTab } from './MemosTab'
-import { SettingsTab } from './SettingsTab'
-import { api, useStore } from './store'
-import { Alert, Icon, Kbd, type IconName } from './ui'
+import { api, useStore } from '../common/store'
+import { Alert, Emblem, Icon, Kbd, type IconName } from '../common/ui'
+import { BindsPage } from './BindsPage'
+import { ChecklistsPage } from './ChecklistsPage'
+import { LawsPage } from './LawsPage'
+import { MemosPage } from './MemosPage'
+import { Onboarding } from './Onboarding'
+import { SettingsPage } from './SettingsPage'
 
 const TABS: { id: TabId; label: string; icon: IconName }[] = [
   { id: 'binds', label: 'Отыгровки', icon: 'chat' },
   { id: 'memos', label: 'Памятки', icon: 'memo' },
   { id: 'laws', label: 'Законы', icon: 'book' },
+  { id: 'checklists', label: 'Алгоритмы', icon: 'checklist' },
   { id: 'settings', label: 'Настройки', icon: 'sliders' }
 ]
 
 export function App() {
   const app = useStore((s) => s.app)
   const tab = useStore((s) => s.tab)
-  const accent = app?.settings.ui.accent
 
   useEffect(() => {
     void useStore.getState().init()
   }, [])
 
-  useEffect(() => {
-    if (!accent) return
-    const root = document.documentElement.style
-    root.setProperty('--accent', accent)
-    root.setProperty('--accent-soft', `${accent}24`)
-    root.setProperty('--accent-line', `${accent}73`)
-  }, [accent])
-
-  if (!app) return <div className="app" />
+  if (!app) return <div className="shell" />
 
   return (
-    <div className={`app${app.mode === 'glass' ? ' glass' : ''}`}>
-      <Header />
-      <Nav />
-      <Banners />
-      {tab === 'binds' && <BindsTab />}
-      {tab === 'memos' && <MemosTab />}
-      {tab === 'laws' && <LawsTab />}
-      {tab === 'settings' && <SettingsTab />}
+    <div className="shell">
+      <Sidebar />
+      <main className="main">
+        {tab === 'binds' && <BindsPage />}
+        {tab === 'memos' && <MemosPage />}
+        {tab === 'laws' && <LawsPage />}
+        {tab === 'checklists' && <ChecklistsPage />}
+        {tab === 'settings' && <SettingsPage />}
+      </main>
+      {!app.settings.onboarded && <Onboarding />}
     </div>
   )
 }
 
-function Header() {
-  const settings = useStore((s) => s.app!.settings)
-  const mode = useStore((s) => s.app!.mode)
-  const p = activeProfile(settings)
-  const who = [[p.rank, p.surname].filter(Boolean).join(' '), p.unit, p.badge && `№${p.badge}`].filter(Boolean).join(' · ')
-  const windowKey = settings.hotkeys.window
-
+/** Заголовок страницы с кнопками окна — вызывается каждой страницей */
+export function TitleBar({ title, sub, actions }: { title: string; sub?: ReactNode; actions?: ReactNode }) {
   return (
-    <header className="header">
-      <div className="logo">
-        <Icon name="shield" />
-      </div>
-      <div className="brand">
-        <span className="brand-name">ФСВНГ HELPER</span>
-        <span className="brand-sub">{who || 'Заполните профиль в настройках'}</span>
-      </div>
-      <span className="glass-pill">
-        <Icon name="layers" size={14} />
-        стекло{windowKey ? ` · ${windowKey} — окно` : ''}
-      </span>
-      <button
-        type="button"
-        className={`icon-btn${mode === 'glass' ? ' on' : ''}`}
-        aria-label="Режим «стекло» поверх игры"
-        title={`Режим «стекло»${settings.hotkeys.glass ? ` (${settings.hotkeys.glass})` : ''}`}
-        onClick={() => api.windowAction('glass')}
-      >
-        <Icon name="layers" />
-      </button>
-      <button type="button" className="icon-btn" aria-label="Свернуть" onClick={() => api.windowAction('minimize')}>
-        <Icon name="minus" />
-      </button>
-      <button
-        type="button"
-        className="icon-btn danger"
-        aria-label="Скрыть в трей"
-        title="Скрыть в трей — приложение продолжит работать"
-        onClick={() => api.windowAction('hide')}
-      >
-        <Icon name="close" />
-      </button>
-    </header>
+    <>
+      <header className="titlebar">
+        <h1>{title}</h1>
+        {sub && <span className="sub">{sub}</span>}
+        <div className="actions">{actions}</div>
+        <div className="win-buttons">
+          <button type="button" aria-label="Свернуть" onClick={() => api.windowAction('minimize')}>
+            <Icon name="minus" size={16} />
+          </button>
+          <button type="button" aria-label="Развернуть" onClick={() => api.windowAction('maximize')}>
+            <Icon name="maximize" size={14} />
+          </button>
+          <button
+            type="button"
+            className="close"
+            aria-label="Скрыть в трей"
+            title="Скрыть в трей — приложение продолжит работать"
+            onClick={() => api.windowAction('hide')}
+          >
+            <Icon name="close" size={16} />
+          </button>
+        </div>
+      </header>
+      <Banners />
+    </>
   )
 }
 
-function Nav() {
+function Sidebar() {
   const tab = useStore((s) => s.tab)
   const setTab = useStore((s) => s.setTab)
+  const settings = useStore((s) => s.app!.settings)
+  const game = useStore((s) => s.app!.game)
+  const elevated = useStore((s) => s.app!.elevated)
+  const panel = useStore((s) => s.app!.panel)
+  const docs = useStore((s) => s.docs)
+  const p = activeProfile(settings)
+  const fullName = [p.name, p.surname].filter(Boolean).join(' ')
+  const initials = (p.surname || p.name || '?').slice(0, 1).toUpperCase()
+  const counts: Partial<Record<TabId, number>> = {
+    binds: settings.binds.length,
+    laws: Object.values(docs).length,
+    checklists: settings.checklists.length
+  }
+
   return (
-    <nav className="nav" aria-label="Разделы">
-      {TABS.map((t) => (
-        <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-          <Icon name={t.icon} />
-          {t.label}
-        </button>
-      ))}
-    </nav>
+    <aside className="sidebar">
+      <div className="brand">
+        <Emblem size={38} />
+        <div>
+          <div className="brand-name">ФСВНГ HELPER</div>
+          <div className="brand-sub">УФСВНГ · RMRP</div>
+        </div>
+      </div>
+
+      <button type="button" className="profile-card" onClick={() => setTab('settings')} title="Профиль — в настройках">
+        <span className="avatar">{initials}</span>
+        <span className="who">
+          <b>{fullName || 'Заполните профиль'}</b>
+          <span>{[p.rank, p.unit, p.badge && `№${p.badge}`].filter(Boolean).join(' · ')}</span>
+        </span>
+      </button>
+
+      <nav className="nav" aria-label="Разделы">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
+            <Icon name={t.icon} />
+            {t.label}
+            {counts[t.id] !== undefined && <span className="count">{counts[t.id]}</span>}
+          </button>
+        ))}
+      </nav>
+
+      <div className="side-foot">
+        <div className="panel-card">
+          <div className="row-between" style={{ alignItems: 'center' }}>
+            <span className="caps" style={{ fontSize: 12 }}>
+              Панель в игре
+            </span>
+            <span className={`dot${panel !== 'hidden' ? ' ok' : ''}`} title={panel !== 'hidden' ? 'Показана' : 'Скрыта'} />
+          </div>
+          <div className="keys">
+            {settings.hotkeys.panel && (
+              <span>
+                <Kbd>{settings.hotkeys.panel}</Kbd> показать / скрыть
+              </span>
+            )}
+            {settings.hotkeys.interact && (
+              <span>
+                <Kbd>{settings.hotkeys.interact}</Kbd> управлять мышью
+              </span>
+            )}
+          </div>
+          <button
+            type="button"
+            className="btn small block"
+            onClick={() => api.panelAction(panel === 'hidden' ? 'passive' : 'hidden')}
+          >
+            <Icon name="panel" size={16} />
+            {panel === 'hidden' ? 'Показать панель' : 'Скрыть панель'}
+          </button>
+        </div>
+        <div className="status-row">
+          <span className={`dot${game.active ? ' ok' : ''}`} />
+          {game.active ? 'GTA на переднем плане' : 'GTA не активна'}
+        </div>
+        <div className="status-row">
+          <span className={`dot${elevated ? ' ok' : ' warn'}`} />
+          {elevated ? 'Права администратора' : 'Без прав администратора'}
+          {!elevated && (
+            <button type="button" onClick={() => api.restartAsAdmin()}>
+              дать
+            </button>
+          )}
+        </div>
+      </div>
+    </aside>
   )
 }
 
@@ -111,13 +170,26 @@ function Banners() {
   const game = useStore((s) => s.app!.game)
   const errors = useStore((s) => s.app!.settingsErrors)
   const testMode = useStore((s) => s.app!.settings.testMode)
-  if (!game.fullscreenSeen && errors.length === 0 && !testMode) return null
+  const elevated = useStore((s) => s.app!.elevated)
+  const patchSettings = useStore((s) => s.patchSettings)
+  if (!game.fullscreenSeen && errors.length === 0 && !testMode && elevated) return null
   return (
-    <div className="banner" style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+    <div className="banners">
       {game.fullscreenSeen && (
         <Alert>
           GTA запущена в полноэкранном режиме — поверх неё окна не видны. Поставьте в настройках графики игры режим
           «Оконный без рамки».
+        </Alert>
+      )}
+      {!elevated && (
+        <Alert>
+          <span>
+            Приложение запущено без прав администратора. Если RMRP запущен от администратора, клавиши и панель в игре
+            работать не будут.
+          </span>
+          <button type="button" className="btn small" onClick={() => api.restartAsAdmin()}>
+            Перезапустить с правами
+          </button>
         </Alert>
       )}
       {errors.map((e) => (
@@ -125,27 +197,12 @@ function Banners() {
       ))}
       {testMode && (
         <Alert>
-          Включён тестовый режим: отыгровки печатаются в любое активное окно. Выключить — в настройках или в меню трея.
+          <span>Включён тестовый режим: отыгровки печатаются в любое активное окно.</span>
+          <button type="button" className="btn small" onClick={() => patchSettings((s) => ({ ...s, testMode: false }))}>
+            Выключить
+          </button>
         </Alert>
       )}
     </div>
-  )
-}
-
-/** Строка состояния внизу вкладок */
-export function StatusFooter() {
-  const game = useStore((s) => s.app!.game)
-  const windowKey = useStore((s) => s.app!.settings.hotkeys.window)
-  return (
-    <footer className="footer">
-      <span className={`dot${game.active ? ' ok' : ''}`} aria-hidden="true" />
-      <span style={{ flex: 1 }}>{game.active ? 'GTA активна' : 'GTA не на переднем плане'}</span>
-      {windowKey && (
-        <>
-          <span>Скрыть</span>
-          <Kbd>{windowKey}</Kbd>
-        </>
-      )}
-    </footer>
   )
 }

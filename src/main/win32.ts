@@ -59,6 +59,9 @@ const QueryFullProcessImageNameW = kernel32.func('QueryFullProcessImageNameW', '
 ])
 const CloseHandle = kernel32.func('CloseHandle', 'bool', ['void *'])
 const SHQueryUserNotificationState = shell32.func('SHQueryUserNotificationState', 'int32_t', ['int32_t *'])
+const IsUserAnAdmin = shell32.func('IsUserAnAdmin', 'bool', [])
+const RECT = koffi.struct('RECT', { left: 'int32_t', top: 'int32_t', right: 'int32_t', bottom: 'int32_t' })
+const GetWindowRect = user32.func('GetWindowRect', 'bool', ['uintptr_t', koffi.out(koffi.pointer(RECT))])
 
 const INPUT_KEYBOARD = 1
 const KEYEVENTF_KEYUP = 0x0002
@@ -238,6 +241,22 @@ export function forceForeground(hwnd: Hwnd): boolean {
   } finally {
     if (attach) AttachThreadInput(ownThread, currentThread, false)
   }
+}
+
+/** Процесс запущен с правами администратора */
+export function isElevated(): boolean {
+  try {
+    return IsUserAnAdmin()
+  } catch {
+    return false
+  }
+}
+
+/** Прямоугольник окна в физических пикселях экрана */
+export function windowRect(hwnd: Hwnd): { x: number; y: number; width: number; height: number } | null {
+  const r: { left?: number; top?: number; right?: number; bottom?: number } = {}
+  if (!GetWindowRect(hwnd, r) || r.left === undefined) return null
+  return { x: r.left, y: r.top!, width: r.right! - r.left, height: r.bottom! - r.top! }
 }
 
 /** Запущено полноэкранное Direct3D-приложение — поверх него окна не видны */

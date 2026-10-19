@@ -36,14 +36,16 @@ export interface Checklist {
   steps: string[]
 }
 
-export type HotkeyAction = 'window' | 'glass' | 'memos' | 'stop'
+export type HotkeyAction = 'window' | 'panel' | 'interact' | 'stop'
 
 export const HOTKEY_ACTIONS: { id: HotkeyAction; label: string; hint?: string }[] = [
-  { id: 'window', label: 'Показать / скрыть окно' },
-  { id: 'glass', label: 'Режим «стекло»', hint: 'окно поверх игры, клики проходят в игру' },
-  { id: 'memos', label: 'Памятки поверх игры', hint: 'открыть «стекло» на вкладке «Памятки»' },
+  { id: 'window', label: 'Окно приложения', hint: 'открыть поверх игры или спрятать' },
+  { id: 'panel', label: 'Панель в игре', hint: 'показать или спрятать, клики идут в игру' },
+  { id: 'interact', label: 'Управлять панелью', hint: 'поиск, галочки, мышь; Esc — назад в игру' },
   { id: 'stop', label: 'Остановить отыгровку' }
 ]
+
+export type PanelTab = 'memos' | 'search' | 'checklist' | 'binds'
 
 export type InputMethod = 'keys' | 'paste'
 
@@ -62,11 +64,23 @@ export interface Settings {
   }
   ui: {
     accent: string
-    glassOpacity: number
     scale: number
     alwaysOnTop: boolean
     autostart: boolean
     lawFontSize: number
+  }
+  /** Панель поверх игры */
+  overlay: {
+    /** Положение левого верхнего угла в процентах экрана; null — справа по умолчанию */
+    x: number | null
+    y: number | null
+    width: number
+    /** Наибольшая высота, % высоты экрана */
+    maxHeight: number
+    opacity: number
+    scale: number
+    tab: PanelTab
+    checklistId: string | null
   }
   game: {
     processNames: string[]
@@ -74,6 +88,8 @@ export interface Settings {
   }
   /** Бинды и хоткеи работают в любом окне — для проверки без игры */
   testMode: boolean
+  /** Мастер первого запуска пройден */
+  onboarded: boolean
   /** Избранные памятки: "uk:44", "koap:8.7", "pk:10" */
   favorites: string[]
   /** Закладки в тексте законов: "uk:44" */
@@ -81,14 +97,29 @@ export interface Settings {
   checklists: Checklist[]
   /** Отметки в чек-листах: id → номера отмеченных шагов */
   checks: Record<string, number[]>
+  /** Статьи в калькуляторе: "uk:37:2", "koap:8.7:" — общие для окна, панели и {статьи} */
+  calc: string[]
 }
 
+/** Крап — цвет беретов и знамён Росгвардии */
 export const ACCENTS = [
-  { color: '#E0B04A', label: 'Золото' },
-  { color: '#7FB2F0', label: 'Небо' },
-  { color: '#79C7B5', label: 'Мята' },
-  { color: '#B9A2F0', label: 'Лаванда' }
+  { color: '#B3243B', label: 'Крап' },
+  { color: '#D63B3B', label: 'Алый' },
+  { color: '#D4AF5A', label: 'Золото' },
+  { color: '#7E9CB8', label: 'Сталь' }
 ]
+
+/** Цвет текста на кнопке с акцентным фоном: тёмный на светлом, белый на тёмном */
+export function onAccent(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex)
+  if (!m) return '#ffffff'
+  const n = parseInt(m[1], 16)
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((c) => {
+    const s = c / 255
+    return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4
+  })
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.35 ? '#16120f' : '#ffffff'
+}
 
 export const RANKS = [
   'Рядовой полиции',
@@ -122,19 +153,40 @@ export const VARIABLES: { token: string; label: string }[] = [
   { token: '{жетон}', label: 'Номер жетона' },
   { token: '{позывной}', label: 'Позывной' },
   { token: '{время}', label: 'Время ЧЧ:ММ' },
-  { token: '{дата}', label: 'Дата' }
+  { token: '{дата}', label: 'Дата' },
+  { token: '{статьи}', label: 'Статьи из калькулятора' }
 ]
 
 function pad(n: number): string {
   return String(n).padStart(2, '0')
 }
 
+const CALC_LAW_NAMES: Record<string, string> = { uk: 'УК РФ', koap: 'КоАП РФ' }
+
+/** Ключи калькулятора → «УК РФ ст. 44, ст. 46 ч. 2; КоАП РФ ст. 8.7» */
+export function formatCalcArticles(keys: string[]): string {
+  const byLaw = new Map<string, string[]>()
+  for (const key of keys) {
+    const [law, number, part] = key.split(':')
+    const list = byLaw.get(law) ?? []
+    list.push(`ст. ${number}${part ? ` ч. ${part}` : ''}`)
+    byLaw.set(law, list)
+  }
+  return [...byLaw.entries()].map(([law, list]) => `${CALC_LAW_NAMES[law] ?? law} ${list.join(', ')}`).join('; ')
+}
+
+/** Отыгровка использует статьи из калькулятора */
+export function usesArticles(text: string): boolean {
+  return /\{статьи\}/i.test(text)
+}
+
 /**
  * Подставляет профиль в строку отыгровки.
  *   {фамилия}, {жетон}… — значения профиля
+ *   {статьи}            — статьи, отмеченные в калькуляторе
  *   {снял|сняла}        — форма по полу
  */
-export function renderLine(text: string, profile: Profile, now = new Date()): string {
+export function renderLine(text: string, profile: Profile, calc: string[] = [], now = new Date()): string {
   const values: Record<string, string> = {
     имя: profile.name,
     фамилия: profile.surname,
@@ -143,7 +195,8 @@ export function renderLine(text: string, profile: Profile, now = new Date()): st
     жетон: profile.badge,
     позывной: profile.callsign,
     время: `${pad(now.getHours())}:${pad(now.getMinutes())}`,
-    дата: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`
+    дата: `${pad(now.getDate())}.${pad(now.getMonth() + 1)}.${now.getFullYear()}`,
+    статьи: formatCalcArticles(calc)
   }
   return text
     .replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (_, male: string, female: string) =>
@@ -265,6 +318,14 @@ export const DEFAULT_BINDS: Bind[] = [
       line('/me {проверил|проверила} карманы и пояс, {прощупал|прощупала} одежду'),
       line('/do Обыск проведён.')
     ]
+  },
+  {
+    id: 'articles',
+    name: 'Огласить статьи',
+    hotkey: 'Alt+0',
+    enterAfterEach: true,
+    // ст. 10 ПК: огласить перечень статей. Статьи берутся из калькулятора
+    lines: [line('Вы задерживаетесь по статьям: {статьи}.')]
   }
 ]
 
@@ -344,17 +405,19 @@ export const DEFAULT_FAVORITES = [
   'uk:91',
   'uk:93',
   'pk:7',
-  'pk:10'
+  'pk:10',
+  'fz34:7',
+  'fz86:1'
 ]
 
 export function defaultProfile(): Profile {
   return {
     id: 'main',
     name: '',
-    surname: 'Колыван',
-    rank: 'Сержант полиции',
-    unit: 'ОМОН',
-    badge: '73',
+    surname: '',
+    rank: 'Рядовой полиции',
+    unit: 'АВНГ',
+    badge: '',
     callsign: '',
     gender: 'm'
   }
@@ -367,16 +430,19 @@ export function defaultSettings(): Settings {
     profiles: [profile],
     activeProfileId: profile.id,
     binds: structuredClone(DEFAULT_BINDS),
-    hotkeys: { window: 'F1', glass: 'Ctrl+F1', memos: 'F3', stop: 'End' },
+    hotkeys: { window: 'F1', panel: 'F3', interact: 'F4', stop: 'End' },
     // Паузы как в старом AHK — с ними сервер не кикает за флуд
     chat: { openKey: 'T', method: 'keys', openDelayMs: 200, lineDelayMs: 200, closeWithEnter: true },
-    ui: { accent: ACCENTS[0].color, glassOpacity: 85, scale: 100, alwaysOnTop: true, autostart: false, lawFontSize: 15 },
+    ui: { accent: ACCENTS[0].color, scale: 100, alwaysOnTop: true, autostart: false, lawFontSize: 15 },
+    overlay: { x: null, y: null, width: 400, maxHeight: 70, opacity: 94, scale: 100, tab: 'memos', checklistId: 'detention' },
     game: { processNames: ['GTA5.exe', 'GTA5_Enhanced.exe'], classNames: ['grcWindow'] },
     testMode: false,
+    onboarded: false,
     favorites: [...DEFAULT_FAVORITES],
     bookmarks: [],
     checklists: structuredClone(DEFAULT_CHECKLISTS),
-    checks: {}
+    checks: {},
+    calc: []
   }
 }
 

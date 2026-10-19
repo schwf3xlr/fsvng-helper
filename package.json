@@ -1,7 +1,7 @@
 {
   "name": "fsvng-helper",
   "productName": "ФСВНГ Helper",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "ФСВНГ Helper — отыгровки, памятки и законы поверх GTA V для УФСВНГ на RMRP",
   "author": "УФСВНГ по АФО",
@@ -71,12 +71,13 @@
     },
     "nsis": {
       "oneClick": true,
-      "perMachine": false,
+      "perMachine": true,
       "createDesktopShortcut": true,
       "shortcutName": "ФСВНГ Helper",
       "runAfterFinish": true,
       "deleteAppDataOnUninstall": false,
-      "artifactName": "fsvng-helper-setup-${version}.${ext}"
+      "artifactName": "fsvng-helper-setup-${version}.${ext}",
+      "allowElevation": true
     },
     "publish": [
       {

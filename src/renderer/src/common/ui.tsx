@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-import type { LawId } from '../../../shared/laws'
-import { LAW_SOURCES } from '../../../shared/laws'
+import { lawSource, type LawId } from '../../../shared/laws'
 
 const PATHS = {
   shield: (
@@ -89,7 +88,46 @@ const PATHS = {
       <path d="M8 7h8M8 11h.01M12 11h.01M16 11h.01M8 15h.01M12 15h.01M16 15h.01" />
     </>
   ),
-  list: <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />
+  list: <path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" />,
+  checklist: (
+    <>
+      <path d="M4 6l2 2 3-3M4 13l2 2 3-3M4 20l2 2 3-3" />
+      <path d="M12 7h8M12 14h8M12 21h8" />
+    </>
+  ),
+  maximize: <rect x="5" y="5" width="14" height="14" rx="1.5" />,
+  panel: (
+    <>
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M14 4v16M16.5 8h2M16.5 11h2" />
+    </>
+  ),
+  keyboard: (
+    <>
+      <rect x="2.5" y="6" width="19" height="12" rx="2" />
+      <path d="M6 10h.01M10 10h.01M14 10h.01M18 10h.01M7 14h10" />
+    </>
+  ),
+  user: (
+    <>
+      <circle cx="12" cy="8" r="4" />
+      <path d="M4 21c1.5-4 4.5-6 8-6s6.5 2 8 6" />
+    </>
+  ),
+  monitor: (
+    <>
+      <rect x="3" y="4" width="18" height="12" rx="2" />
+      <path d="M8 20h8M12 16v4" />
+    </>
+  ),
+  check: <path d="M5 12.5l4.5 4.5L19 7" />,
+  cursor: <path d="M6 3l12 9-5 1 3 6-3 1.5-3-6-4 3.5z" />,
+  admin: (
+    <>
+      <path d="M12 3l7 3v5c0 4.5-3 8.5-7 10-4-1.5-7-5.5-7-10V6l7-3z" />
+      <path d="M9 12l2 2 4-4" />
+    </>
+  )
 }
 
 const FILLED = {
@@ -131,13 +169,39 @@ export function Icon({ name, size = 18, filled }: { name: IconName; size?: numbe
   )
 }
 
+/** Эмблема приложения: краповый щит с золотой звездой (как на иконке) */
+export function Emblem({ size = 34 }: { size?: number }) {
+  return (
+    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 48 48" className="emblem">
+      <defs>
+        <linearGradient id="em-shield" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#C02A42" />
+          <stop offset="1" stopColor="#6A1020" />
+        </linearGradient>
+        <linearGradient id="em-gold" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#F4DA92" />
+          <stop offset="1" stopColor="#C29236" />
+        </linearGradient>
+      </defs>
+      <path
+        d="M24 3.5l15 5.3v12c0 10-6.2 17.2-15 20.9C15.2 38 9 30.8 9 20.8v-12z"
+        fill="url(#em-shield)"
+        stroke="url(#em-gold)"
+        strokeWidth="2.4"
+        strokeLinejoin="round"
+      />
+      <path d="M24 10.5l2.6 5.6 6 .7-4.4 4.1 1.2 6-5.4-3.1-5.4 3.1 1.2-6-4.4-4.1 6-.7z" fill="url(#em-gold)" />
+      <path d="M15.5 25c1.5 5 4.5 8.4 8.5 10.4M32.5 25c-1.5 5-4.5 8.4-8.5 10.4" fill="none" stroke="url(#em-gold)" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  )
+}
+
 export function Kbd({ children, accent, className = '' }: { children: ReactNode; accent?: boolean; className?: string }) {
   return <kbd className={`kbd${accent ? ' accent' : ''} ${className}`}>{children}</kbd>
 }
 
 export function LawBadge({ law }: { law: LawId }) {
-  const short = LAW_SOURCES.find((s) => s.id === law)?.short ?? law
-  return <span className={`law-badge ${law}`}>{short === 'ФЗ о ФСВНГ' ? 'ФЗ' : short}</span>
+  return <span className={`law-badge ${law}`}>{lawSource(law).badge}</span>
 }
 
 export function Stars({ count }: { count?: number }) {

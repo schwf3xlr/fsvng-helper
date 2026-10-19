@@ -1,8 +1,9 @@
 // Памятки: УК и КоАП собираются из текста закона (санкции разбираются автоматически),
-// ПК и ФЗ о ФСВНГ — короткие пересказы из shared/memos.ts.
+// остальные законы — короткие пересказы из shared/memos.ts.
 import { LAW_SOURCES, type LawDoc, type LawId } from '../../../shared/laws'
 import { CURATED_MEMOS } from '../../../shared/memos'
 import { formatMoney, formatPenalty, splitParts, yearsWord, type Penalty } from '../../../shared/penalty'
+import { formatCalcArticles } from '../../../shared/settings'
 import { normalize } from './ui'
 
 export interface MemoPart {
@@ -77,6 +78,52 @@ export function buildMemos(docs: Partial<Record<LawId, LawDoc>>): MemoItem[] {
 
 const NUMBER_QUERY = /^\d+([.\-]\d+)*$/
 
+// ---------- Поиск по-русски: окончания и беглые гласные ----------
+
+const ENDINGS = /(?:ями|ами|ого|его|ому|ему|ыми|ими|ах|ях|ых|их|ой|ей|ий|ый|ая|яя|ое|ее|ые|ие|ую|юю|ом|ем|ам|ям|ов|ев|а|я|о|е|ы|и|у|ю|ь|й)$/
+
+/** «масками» → «маск», «оружия» → «оружи» */
+function stem(word: string): string {
+  const s = word.replace(ENDINGS, '')
+  return s.length >= 3 ? s : word
+}
+
+/** «масок» → «маск»: беглая гласная перед последней согласной */
+function withoutFleeting(s: string): string {
+  return s.replace(/[ое]([^аеёиоуыэюяьй])$/, '$1')
+}
+
+const wordsOf = (text: string) => text.split(/[^\p{L}\p{N}]+/u).filter((w) => w.length > 1)
+
+/**
+ * Насколько текст подходит под запрос: 0 — не подходит. Каждое слово запроса
+ * должно найтись точно (2 очка) или по основе (1 очко).
+ */
+export function matchScore(haystack: string, query: string): number {
+  const q = normalize(query.trim())
+  if (!q) return 1
+  const words = wordsOf(q)
+  if (words.length === 0) return 1
+  let score = 0
+  let textWords: string[] | null = null
+  for (const w of words) {
+    if (haystack.includes(w)) {
+      score += 2
+      continue
+    }
+    const qs = stem(w)
+    if (qs.length < 3) return 0
+    textWords ??= wordsOf(haystack)
+    const hit = textWords.some((tw) => {
+      const ts = stem(tw)
+      return ts.startsWith(qs) || withoutFleeting(ts).startsWith(qs) || withoutFleeting(tw).startsWith(qs)
+    })
+    if (!hit) return 0
+    score += 1
+  }
+  return score
+}
+
 export function filterMemos(items: MemoItem[], query: string, law: LawId | 'all' | 'fav', favorites: string[]): MemoItem[] {
   let list = items
   if (law === 'fav') list = list.filter((i) => favorites.includes(i.key))
@@ -87,13 +134,19 @@ export function filterMemos(items: MemoItem[], query: string, law: LawId | 'all'
   if (NUMBER_QUERY.test(q)) {
     return list.filter((i) => i.number === q || i.number.startsWith(`${q}.`) || i.number.startsWith(`${q}-`))
   }
-  const words = q.split(/\s+/).filter(Boolean)
-  return list.filter((i) => words.every((w) => i.haystack.includes(w)))
+  // Совпадение в названии и точные совпадения — выше; внутри — порядок законов
+  return list
+    .map((item, index) => {
+      const inText = matchScore(item.haystack, q)
+      return { item, index, score: inText && inText + matchScore(normalize(item.title), q) }
+    })
+    .filter((r) => r.score > 0)
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map((r) => r.item)
 }
 
 // ---------- Калькулятор наказания ----------
 
-const LAW_NAMES: Partial<Record<LawId, string>> = { uk: 'УК РФ', koap: 'КоАП РФ' }
 /** ч. 2 ст. 30 УК: сроки суммируются, но не больше 15 лет */
 export const MAX_PRISON_YEARS = 15
 
@@ -147,13 +200,7 @@ export function calculate(keys: string[], items: MemoItem[]): CalcResult {
     }
   }
 
-  const byLaw = new Map<LawId, string[]>()
-  for (const { item, part } of picks) {
-    const list = byLaw.get(item.law) ?? []
-    list.push(partLabel(item, part))
-    byLaw.set(item.law, list)
-  }
-  const articlesText = [...byLaw.entries()].map(([law, list]) => `${LAW_NAMES[law]}: ${list.join(', ')}`).join('; ')
+  const articlesText = formatCalcArticles(picks.map(({ part }) => part.key))
 
   return {
     picks,

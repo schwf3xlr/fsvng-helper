@@ -1,15 +1,16 @@
 // Окна приложения:
-//  - основное окно «ФСВНГ Helper» — активное (мышь и клавиатура) или «стекло»
-//    (полупрозрачное, клики проходят в игру, фокус остаётся в GTA);
-//  - оверлей на весь экран — только уведомления отыгровок.
+//  - большое окно «ФСВНГ Helper» — настройка, памятки, законы;
+//  - оверлей на весь экран игры: уведомления отыгровок и компактная панель.
+//    Панель бывает видимой (клики идут в игру) и активной (мышь и клавиатура).
 // Игра должна быть в режиме «Оконный без рамки»: поверх полноэкранного режима окна не видны.
 import { app, BrowserWindow, screen, type Rectangle } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { WindowMode } from '../shared/api'
+import type { PanelMode, WindowMode } from '../shared/api'
 import { forceForeground, forceTopmost, foregroundHwnd, hwndFromHandle, type Hwnd } from './win32'
 
 const preload = () => join(__dirname, '../preload/index.js')
+const icon = () => join(__dirname, '../../resources/icon.png')
 
 function loadPage(win: BrowserWindow, page: 'index' | 'overlay'): void {
   const devUrl = process.env.ELECTRON_RENDERER_URL
@@ -31,9 +32,13 @@ function forwardConsole(win: BrowserWindow, tag: string): void {
 
 const boundsFile = () => join(app.getPath('userData'), 'window.json')
 
-function savedBounds(): Partial<Rectangle> {
+interface SavedBounds extends Partial<Rectangle> {
+  maximized?: boolean
+}
+
+function savedBounds(): SavedBounds {
   try {
-    if (existsSync(boundsFile())) return JSON.parse(readFileSync(boundsFile(), 'utf8')) as Rectangle
+    if (existsSync(boundsFile())) return JSON.parse(readFileSync(boundsFile(), 'utf8')) as SavedBounds
   } catch {
     // Позиция по умолчанию
   }
@@ -45,11 +50,11 @@ function visibleOnScreen(b: Partial<Rectangle>): boolean {
   if (b.x === undefined || b.y === undefined) return false
   return screen.getAllDisplays().some((d) => {
     const a = d.workArea
-    return b.x! < a.x + a.width - 60 && b.x! + (b.width ?? 400) > a.x + 60 && b.y! >= a.y - 10 && b.y! < a.y + a.height - 60
+    return b.x! < a.x + a.width - 80 && b.x! + (b.width ?? 600) > a.x + 80 && b.y! >= a.y - 10 && b.y! < a.y + a.height - 80
   })
 }
 
-// ---------- Основное окно ----------
+// ---------- Большое окно ----------
 
 export class MainWindow {
   readonly win: BrowserWindow
@@ -57,26 +62,27 @@ export class MainWindow {
   mode: WindowMode = 'hidden'
   /** Окно игры, которому вернуть фокус, когда наше окно скрывается */
   private returnFocusTo: Hwnd | null = null
-  private alwaysOnTop = true
-  private glassOpacity = 0.85
+  private alwaysOnTop = false
 
   constructor(private readonly onModeChange: (mode: WindowMode) => void) {
     const b = savedBounds()
     const onScreen = visibleOnScreen(b)
+    const area = screen.getPrimaryDisplay().workAreaSize
     this.win = new BrowserWindow({
-      width: b.width ?? 440,
-      height: b.height ?? 820,
+      width: b.width ?? Math.min(1240, area.width - 80),
+      height: b.height ?? Math.min(800, area.height - 60),
       x: onScreen ? b.x : undefined,
       y: onScreen ? b.y : undefined,
-      minWidth: 380,
-      minHeight: 520,
+      minWidth: 920,
+      minHeight: 600,
       frame: false,
       show: false,
-      backgroundColor: '#16181C',
+      backgroundColor: '#131113',
       title: 'ФСВНГ Helper',
-      icon: join(__dirname, '../../resources/icon.png'),
+      icon: icon(),
       webPreferences: { preload: preload(), contextIsolation: true, nodeIntegration: false, sandbox: false }
     })
+    if (b.maximized) this.win.maximize()
     this.hwnd = hwndFromHandle(this.win.getNativeWindowHandle())
     forwardConsole(this.win, 'окно')
 
@@ -84,11 +90,15 @@ export class MainWindow {
     const saveBounds = () => {
       clearTimeout(saveTimer)
       saveTimer = setTimeout(() => {
-        if (!this.win.isDestroyed()) writeFileSync(boundsFile(), JSON.stringify(this.win.getNormalBounds()))
+        if (this.win.isDestroyed()) return
+        const data: SavedBounds = { ...this.win.getNormalBounds(), maximized: this.win.isMaximized() }
+        writeFileSync(boundsFile(), JSON.stringify(data))
       }, 500)
     }
     this.win.on('moved', saveBounds)
     this.win.on('resized', saveBounds)
+    this.win.on('maximize', saveBounds)
+    this.win.on('unmaximize', saveBounds)
     // Крестик прячет окно в трей, выход — через меню трея
     this.win.on('close', (e) => {
       if (!quitting) {
@@ -99,16 +109,19 @@ export class MainWindow {
     loadPage(this.win, 'index')
   }
 
-  configure(alwaysOnTop: boolean, glassOpacityPercent: number, scalePercent: number): void {
+  configure(alwaysOnTop: boolean, scalePercent: number): void {
     this.alwaysOnTop = alwaysOnTop
-    this.glassOpacity = Math.min(1, Math.max(0.2, glassOpacityPercent / 100))
-    this.win.setAlwaysOnTop(alwaysOnTop || this.mode === 'glass', 'screen-saver')
-    if (this.mode === 'glass') this.win.setOpacity(this.glassOpacity)
+    this.win.setAlwaysOnTop(alwaysOnTop, 'screen-saver')
     this.win.webContents.setZoomFactor(scalePercent / 100)
   }
 
   isFocused(): boolean {
     return this.win.isFocused()
+  }
+
+  toggleMaximize(): void {
+    if (this.win.isMaximized()) this.win.unmaximize()
+    else this.win.maximize()
   }
 
   setMode(mode: WindowMode): void {
@@ -118,24 +131,14 @@ export class MainWindow {
     if (mode === 'active') {
       const fg = foregroundHwnd()
       if (fg && fg != this.hwnd) this.returnFocusTo = fg
-      win.setIgnoreMouseEvents(false)
-      win.setFocusable(true)
-      win.setOpacity(1)
-      win.setSkipTaskbar(false)
+      if (win.isMinimized()) win.restore()
       win.setAlwaysOnTop(this.alwaysOnTop, 'screen-saver')
       win.show()
-      if (this.alwaysOnTop) forceTopmost(this.hwnd)
+      // Поверх игры поднимаем всегда, даже если «всегда поверх» выключено
+      forceTopmost(this.hwnd)
+      if (!this.alwaysOnTop) win.setAlwaysOnTop(false)
       forceForeground(this.hwnd)
       win.focus()
-    } else if (mode === 'glass') {
-      win.setIgnoreMouseEvents(true)
-      win.setFocusable(false)
-      win.setOpacity(this.glassOpacity)
-      win.setSkipTaskbar(true)
-      win.setAlwaysOnTop(true, 'screen-saver')
-      win.showInactive()
-      forceTopmost(this.hwnd)
-      if (wasFocused) this.restoreFocus()
     } else {
       win.hide()
       if (wasFocused) this.restoreFocus()
@@ -150,22 +153,23 @@ export class MainWindow {
     if (this.returnFocusTo) forceForeground(this.returnFocusTo)
   }
 
-  /** Держим «стекло» над игрой, если игра снова вышла наверх */
   keepOnTop(): void {
-    if (this.mode === 'glass' || (this.mode === 'active' && this.alwaysOnTop)) forceTopmost(this.hwnd)
+    if (this.mode === 'active' && this.alwaysOnTop) forceTopmost(this.hwnd)
   }
 }
 
-// ---------- Оверлей с уведомлениями ----------
+// ---------- Оверлей: уведомления и панель ----------
 
 export class OverlayWindow {
   readonly win: BrowserWindow
   readonly hwnd: Hwnd
+  panel: PanelMode = 'hidden'
+  private returnFocusTo: Hwnd | null = null
+  private display = screen.getPrimaryDisplay()
 
-  constructor() {
-    const { bounds } = screen.getPrimaryDisplay()
+  constructor(private readonly onPanelChange: (mode: PanelMode) => void) {
     this.win = new BrowserWindow({
-      ...bounds,
+      ...this.display.bounds,
       transparent: true,
       backgroundColor: '#00000000',
       frame: false,
@@ -174,11 +178,13 @@ export class OverlayWindow {
       minimizable: false,
       maximizable: false,
       fullscreenable: false,
+      enableLargerThanScreen: true,
       skipTaskbar: true,
       focusable: false,
       alwaysOnTop: true,
       hasShadow: false,
       show: false,
+      title: 'ФСВНГ Helper — оверлей',
       webPreferences: {
         preload: preload(),
         contextIsolation: true,
@@ -190,19 +196,70 @@ export class OverlayWindow {
     this.hwnd = hwndFromHandle(this.win.getNativeWindowHandle())
     this.win.setAlwaysOnTop(true, 'screen-saver')
     this.win.setIgnoreMouseEvents(true)
-    this.win.once('ready-to-show', () => this.win.showInactive())
-    screen.on('display-metrics-changed', () => {
-      if (!this.win.isDestroyed()) this.win.setBounds(screen.getPrimaryDisplay().bounds)
+    this.win.once('ready-to-show', () => {
+      this.win.showInactive()
+      this.fitDisplay()
+    })
+    screen.on('display-metrics-changed', () => this.fitDisplay())
+    // Активная панель потеряла фокус (клик в игру, Alt+Tab) — снова пропускаем клики
+    this.win.on('blur', () => {
+      if (this.panel === 'interactive') this.setPanel('passive', false)
     })
     forwardConsole(this.win, 'оверлей')
     loadPage(this.win, 'overlay')
   }
 
-  /** Перед каждым уведомлением поднимаемся над окном игры */
+  /** Весь экран, включая панель задач: Windows иначе урезает окно до рабочей области */
+  private fitDisplay(): void {
+    if (this.win.isDestroyed()) return
+    this.win.setBounds(this.display.bounds)
+  }
+
+  /** Перейти на монитор, где запущена игра (прямоугольник окна — в физических пикселях) */
+  followGame(rect: Rectangle): void {
+    const dip = screen.screenToDipRect(null, rect)
+    const display = screen.getDisplayMatching(dip)
+    if (display.id !== this.display.id) {
+      this.display = display
+      this.fitDisplay()
+    }
+  }
+
+  /** Перед уведомлением и при возврате в игру поднимаемся над окном игры */
   raise(): void {
     if (this.win.isDestroyed()) return
     if (!this.win.isVisible()) this.win.showInactive()
     forceTopmost(this.hwnd)
+  }
+
+  setPanel(mode: PanelMode, returnFocus = true): void {
+    const win = this.win
+    // Сразу, до смены фокуса: обработчик blur не должен увидеть старый режим
+    this.panel = mode
+    if (mode === 'interactive') {
+      const fg = foregroundHwnd()
+      if (fg && fg != this.hwnd) this.returnFocusTo = fg
+      win.setFocusable(true)
+      // Клики проходят насквозь, пока курсор не над панелью (см. setMouseOverPanel)
+      win.setIgnoreMouseEvents(true, { forward: true })
+      this.raise()
+      forceForeground(this.hwnd)
+      win.focus()
+      win.webContents.focus()
+    } else {
+      const wasFocused = win.isFocused()
+      win.setIgnoreMouseEvents(true)
+      win.setFocusable(false)
+      if (wasFocused && returnFocus && this.returnFocusTo) forceForeground(this.returnFocusTo)
+      if (mode === 'passive') this.raise()
+    }
+    this.onPanelChange(mode)
+  }
+
+  setMouseOverPanel(over: boolean): void {
+    if (this.panel !== 'interactive') return
+    if (over) this.win.setIgnoreMouseEvents(false)
+    else this.win.setIgnoreMouseEvents(true, { forward: true })
   }
 }
 

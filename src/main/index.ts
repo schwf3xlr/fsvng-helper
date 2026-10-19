@@ -1,15 +1,16 @@
 import { app, clipboard, ipcMain, Menu, nativeImage, Notification, shell, Tray } from 'electron'
 import { join } from 'node:path'
-import { IPC, type AppState, type GameStatus, type TabId, type Toast, type WindowMode } from '../shared/api'
+import { IPC, type AppState, type GameStatus, type PanelMode, type Toast, type WindowMode } from '../shared/api'
 import type { LawId } from '../shared/laws'
-import { activeProfile, renderLine, type Bind, type Settings } from '../shared/settings'
+import { activeProfile, renderLine, usesArticles, type Bind, type Settings } from '../shared/settings'
 import { BindCancelled, BindRunner } from './binds'
+import { relaunchElevated, syncTasks } from './elevation'
 import { HotkeyManager, hotkeyId, parseHotkey, type Binding } from './hotkeys'
 import { LawsService } from './laws/service'
 import { exportPack, importPack } from './pack'
 import { loadSettings, normalizeSettings, writeSettings } from './settings'
 import { Updater } from './updater'
-import { getForeground, isD3DFullscreen, type ForegroundWindow } from './win32'
+import { getForeground, isD3DFullscreen, isElevated, windowRect, type ForegroundWindow } from './win32'
 import { MainWindow, markQuitting, OverlayWindow } from './windows'
 
 let settings: Settings
@@ -17,41 +18,45 @@ let settingsErrors: string[] = []
 let mainWin: MainWindow
 let overlay: OverlayWindow
 let tray: Tray | null = null
-let overlayReady = false
-let currentTab: TabId = 'binds'
 let game: GameStatus = { active: false, foregroundExe: '', fullscreen: false, fullscreenSeen: false }
 let fullscreenNotified = false
+const elevated = isElevated()
 
 const hotkeys = new HotkeyManager()
 const runner = new BindRunner()
 const laws = new LawsService(() => pushState({ laws: laws.meta(), lawsLoading: laws.loading }))
 const updater = new Updater((update) => pushState({ update }))
 
-// ---------- Состояние для окна ----------
+// ---------- Состояние для окон ----------
 
 function fullState(): AppState {
   return {
     settings,
     game,
     mode: mainWin?.mode ?? 'hidden',
+    panel: overlay?.panel ?? 'hidden',
     tab: null,
     laws: laws.meta(),
     lawsLoading: laws.loading,
     runningBind: runner.running,
     update: updater.status,
     version: app.getVersion(),
+    elevated,
     settingsErrors
   }
 }
 
+/** Изменения состояния уходят в оба окна: большое и оверлей */
 function pushState(patch: Partial<AppState>): void {
-  if (mainWin && !mainWin.win.isDestroyed()) mainWin.win.webContents.send(IPC.state, patch)
+  for (const win of [mainWin?.win, overlay?.win]) {
+    if (win && !win.isDestroyed()) win.webContents.send(IPC.state, patch)
+  }
 }
 
 function toast(t: Toast): void {
-  if (!overlayReady) return
+  if (!overlay || overlay.win.isDestroyed()) return
   overlay.raise()
-  overlay.win.webContents.send(IPC.overlayToast, t)
+  overlay.win.webContents.send(IPC.toast, t)
 }
 
 // ---------- Игра на переднем плане ----------
@@ -87,9 +92,12 @@ function pollGame(): void {
   game = { active, foregroundExe: exe, fullscreen, fullscreenSeen: game.fullscreenSeen || fullscreen }
   pushState({ game })
   updateTray()
-  if (becameActive) {
-    mainWin.keepOnTop()
+  if (becameActive && fg) {
+    // Оверлей переезжает на монитор игры и встаёт поверх неё
+    const rect = windowRect(fg.hwnd)
+    if (rect) overlay.followGame(rect)
     overlay.raise()
+    mainWin.keepOnTop()
   }
   if (fullscreen && !fullscreenNotified) {
     fullscreenNotified = true
@@ -109,7 +117,7 @@ function isFullscreenSafe(): boolean {
   }
 }
 
-/** Хоткеи окна работают в игре, в нашем окне и в тестовом режиме */
+/** Хоткеи окна и панели работают в игре, в наших окнах и в тестовом режиме */
 function hotkeysAllowed(): boolean {
   if (settings.testMode) return true
   const fg = getForeground()
@@ -118,13 +126,30 @@ function hotkeysAllowed(): boolean {
 
 // ---------- Отыгровки ----------
 
-async function runBind(bind: Bind, fromWindow: boolean): Promise<void> {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** from — откуда запустили: клавиша в игре, кнопка в окне или в активной панели */
+async function runBind(bind: Bind, from: 'hotkey' | 'window' | 'panel'): Promise<void> {
   if (runner.running) return
 
-  if (fromWindow) {
-    // Кнопка в окне: прячем окно и возвращаем фокус игре
+  if (usesArticles(bind.lines.map((l) => l.text).join(' ')) && settings.calc.length === 0) {
+    toast({
+      id: 'bind-no-articles',
+      kind: 'warn',
+      title: bind.name,
+      text: 'Отметьте статьи в калькуляторе — их подставит {статьи}.',
+      ttl: 4500
+    })
+    return
+  }
+
+  // Кнопка в окне или панели: убираем их и возвращаем фокус игре
+  if (from === 'window') {
     mainWin.setMode('hidden')
-    await new Promise((r) => setTimeout(r, 350))
+    await sleep(350)
+  } else if (from === 'panel') {
+    overlay.setPanel('passive')
+    await sleep(300)
   }
 
   const start = getForeground()
@@ -133,7 +158,7 @@ async function runBind(bind: Bind, fromWindow: boolean): Promise<void> {
       id: 'bind-blocked',
       kind: 'warn',
       title: 'Отыгровка не отправлена',
-      text: `Активное окно — ${start?.exe || 'неизвестно'}, а не GTA. Без игры можно проверить в тестовом режиме (меню в трее).`,
+      text: `Активное окно — ${start?.exe || 'неизвестно'}, а не GTA. Без игры можно проверить в тестовом режиме.`,
       ttl: 5000
     })
     return
@@ -142,7 +167,7 @@ async function runBind(bind: Bind, fromWindow: boolean): Promise<void> {
   const profile = activeProfile(settings)
   const lines = bind.lines
     .filter((l) => l.text.trim())
-    .map((l) => ({ text: renderLine(l.text, profile), delayMs: l.delayMs ?? settings.chat.lineDelayMs }))
+    .map((l) => ({ text: renderLine(l.text, profile, settings.calc), delayMs: l.delayMs ?? settings.chat.lineDelayMs }))
   if (lines.length === 0) return
 
   const id = `bind-${bind.id}-${Date.now()}`
@@ -172,15 +197,14 @@ async function runBind(bind: Bind, fromWindow: boolean): Promise<void> {
   }
 }
 
-// ---------- Режимы окна ----------
+// ---------- Окно и панель ----------
 
 function setMode(mode: WindowMode): void {
   mainWin.setMode(mode)
 }
 
-function requestTab(tab: TabId): void {
-  currentTab = tab
-  pushState({ tab })
+function setPanel(mode: PanelMode): void {
+  overlay.setPanel(mode)
 }
 
 function toggleWindow(): void {
@@ -188,19 +212,14 @@ function toggleWindow(): void {
   else if (hotkeysAllowed()) setMode('active')
 }
 
-function toggleGlass(): void {
-  if (mainWin.mode === 'glass') setMode('hidden')
-  else if (hotkeysAllowed()) setMode('glass')
+function togglePanel(): void {
+  if (overlay.panel !== 'hidden') setPanel('hidden')
+  else if (hotkeysAllowed()) setPanel('passive')
 }
 
-function toggleMemos(): void {
-  if (mainWin.mode === 'glass' && currentTab === 'memos') {
-    setMode('hidden')
-    return
-  }
-  if (!hotkeysAllowed()) return
-  requestTab('memos')
-  setMode('glass')
+function toggleInteract(): void {
+  if (overlay.panel === 'interactive') setPanel('passive')
+  else if (hotkeysAllowed()) setPanel('interactive')
 }
 
 // ---------- Настройки ----------
@@ -220,13 +239,15 @@ function validateHotkeys(s: Settings): string[] {
       errors.push(`${owner}: ${(e as Error).message}`)
     }
   }
-  check(s.hotkeys.window, 'Показать окно')
-  check(s.hotkeys.glass, 'Режим «стекло»')
-  check(s.hotkeys.memos, 'Памятки поверх игры')
+  check(s.hotkeys.window, 'Окно приложения')
+  check(s.hotkeys.panel, 'Панель в игре')
+  check(s.hotkeys.interact, 'Управлять панелью')
   check(s.hotkeys.stop, 'Остановить отыгровку')
   for (const b of s.binds) check(b.hotkey, b.name)
   return errors
 }
+
+let appliedAutostart: boolean | null = null
 
 function applySettings(): void {
   const bindings: Binding[] = []
@@ -239,34 +260,53 @@ function applySettings(): void {
     }
   }
   add(settings.hotkeys.window, toggleWindow)
-  add(settings.hotkeys.glass, toggleGlass)
-  add(settings.hotkeys.memos, toggleMemos)
+  add(settings.hotkeys.panel, togglePanel)
+  add(settings.hotkeys.interact, toggleInteract)
   add(settings.hotkeys.stop, () => runner.cancel(), true)
   for (const bind of settings.binds) {
     add(bind.hotkey, () => {
-      const fg = getForeground()
-      if (isOwnWindow(fg)) return
-      void runBind(bind, false)
+      // В наших окнах (поиск, редактор) клавиши отыгровок не срабатывают
+      if (isOwnWindow(getForeground())) return
+      void runBind(bind, 'hotkey')
     })
   }
   hotkeys.set(bindings)
 
-  mainWin.configure(settings.ui.alwaysOnTop, settings.ui.glassOpacity, settings.ui.scale)
-  if (overlayReady) overlay.win.webContents.send(IPC.overlayAccent, settings.ui.accent)
-  if (app.isPackaged) app.setLoginItemSettings({ openAtLogin: settings.ui.autostart, args: ['--hidden'] })
+  mainWin.configure(settings.ui.alwaysOnTop, settings.ui.scale)
+  // Задачи планировщика трогаем, только когда меняется автозапуск: schtasks медленный
+  if (appliedAutostart !== settings.ui.autostart) {
+    appliedAutostart = settings.ui.autostart
+    try {
+      syncTasks(settings.ui.autostart)
+    } catch (e) {
+      console.log('[fsvng-helper] автозапуск не настроен:', (e as Error).message)
+    }
+  }
   updateTray()
+}
+
+function commit(next: Settings): void {
+  settings = next
+  writeSettings(settings)
+  applySettings()
+  pushState({ settings })
 }
 
 function saveSettings(next: Settings): string[] {
   const normalized = normalizeSettings(next)
   const errors = validateHotkeys(normalized)
   if (errors.length) return errors
-  settings = normalized
-  writeSettings(settings)
   settingsErrors = []
-  applySettings()
-  pushState({ settings, settingsErrors })
+  commit(normalized)
+  pushState({ settingsErrors })
   return []
+}
+
+/** Частичная правка: окно и панель меняют разные разделы и не затирают друг друга */
+function patchSettings(patch: Partial<Settings>): void {
+  const next = normalizeSettings({ ...settings, ...patch })
+  if (validateHotkeys(next).length) return
+  commit(next)
 }
 
 // ---------- Трей ----------
@@ -281,14 +321,14 @@ function updateTray(): void {
   tray.setToolTip(`ФСВНГ Helper — ${status}${game.fullscreenSeen ? ' (полноэкранный режим!)' : ''}`)
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      { label: 'Открыть окно', click: () => setMode('active') },
-      { label: 'Режим «стекло»', click: () => setMode('glass') },
+      { label: 'Открыть приложение', click: () => setMode('active') },
+      { label: 'Показать панель в игре', click: () => setPanel('passive') },
       { type: 'separator' },
       {
         label: 'Тестовый режим (бинды в любом окне)',
         type: 'checkbox',
         checked: settings.testMode,
-        click: (item) => saveSettings({ ...settings, testMode: item.checked })
+        click: (item) => patchSettings({ testMode: item.checked })
       },
       { label: 'Обновить законы с форума', click: () => void laws.refresh() },
       { type: 'separator' },
@@ -304,23 +344,25 @@ const SAFE_LINKS = /^https:\/\/(forum\.rmrp\.ru|github\.com)\//
 function registerIpc(): void {
   ipcMain.handle(IPC.getState, () => fullState())
   ipcMain.handle(IPC.saveSettings, (_e, next: Settings) => saveSettings(next))
+  ipcMain.on(IPC.patchSettings, (_e, patch: Partial<Settings>) => patchSettings(patch))
   ipcMain.handle(IPC.getLaw, (_e, id: LawId) => laws.get(id))
   ipcMain.handle(IPC.refreshLaws, () => laws.refresh())
-  ipcMain.on(IPC.runBind, (_e, id: string) => {
+  ipcMain.on(IPC.runBind, (e, id: string) => {
     const bind = settings.binds.find((b) => b.id === id)
-    if (bind) void runBind(bind, true)
+    if (bind) void runBind(bind, e.sender === overlay.win.webContents ? 'panel' : 'window')
   })
   ipcMain.on(IPC.stopBind, () => runner.cancel())
   ipcMain.on(IPC.hotkeyCapture, (_e, active: boolean) => {
     hotkeys.suspended = active
   })
-  ipcMain.on(IPC.windowAction, (_e, action: 'minimize' | 'hide' | 'glass' | 'active') => {
+  ipcMain.on(IPC.windowAction, (_e, action: 'minimize' | 'maximize' | 'hide' | 'active') => {
     if (action === 'minimize') mainWin.win.minimize()
-    else setMode(action === 'hide' ? 'hidden' : action)
+    else if (action === 'maximize') mainWin.toggleMaximize()
+    else setMode(action === 'hide' ? 'hidden' : 'active')
   })
-  ipcMain.on(IPC.setTab, (_e, tab: TabId) => {
-    currentTab = tab
-  })
+  ipcMain.on(IPC.setTab, () => {})
+  ipcMain.on(IPC.panelAction, (_e, mode: PanelMode) => setPanel(mode))
+  ipcMain.on(IPC.panelMouse, (_e, over: boolean) => overlay.setMouseOverPanel(over))
   ipcMain.handle(IPC.exportPack, () => exportPack(mainWin.win, settings))
   ipcMain.handle(IPC.importPack, async () => {
     const imported = await importPack(mainWin.win, settings)
@@ -337,21 +379,30 @@ function registerIpc(): void {
     markQuitting()
     updater.install()
   })
-  ipcMain.on(IPC.overlayReady, () => {
-    overlayReady = true
-    overlay.win.webContents.send(IPC.overlayAccent, settings.ui.accent)
+  ipcMain.on(IPC.restartAsAdmin, () => {
+    if (relaunchElevated(true)) {
+      markQuitting()
+      app.exit(0)
+    }
   })
 }
 
 // ---------- Запуск ----------
 
-// Одна папка данных и в разработке, и в установленной версии: %APPDATA%\fsvng-helper
-app.setPath('userData', join(app.getPath('appData'), 'fsvng-helper'))
+// Одна папка данных и в разработке, и в установленной версии: %APPDATA%\fsvng-helper.
+// В разработке можно взять другую (FSVNG_USER_DATA), чтобы не мешать установленной копии
+const devUserData = !app.isPackaged ? process.env.FSVNG_USER_DATA : undefined
+app.setPath('userData', devUserData ?? join(app.getPath('appData'), 'fsvng-helper'))
 
-if (!app.requestSingleInstanceLock()) {
+// Без прав администратора перезапускаемся с ними (см. elevation.ts)
+if (relaunchElevated()) {
+  app.exit(0)
+} else if (!app.requestSingleInstanceLock()) {
   app.quit()
 } else {
-  app.on('second-instance', () => setMode('active'))
+  app.on('second-instance', (_e, argv) => {
+    if (!argv.includes('--hidden')) setMode('active')
+  })
 
   app.whenReady().then(() => {
     app.setAppUserModelId('ru.rmrp.fsvng-helper')
@@ -365,7 +416,7 @@ if (!app.requestSingleInstanceLock()) {
     registerIpc()
     laws.loadCache()
 
-    overlay = new OverlayWindow()
+    overlay = new OverlayWindow((panel) => pushState({ panel }))
     mainWin = new MainWindow((mode) => pushState({ mode }))
     tray = new Tray(trayIcon())
     tray.on('click', () => setMode('active'))
@@ -386,8 +437,7 @@ if (!app.requestSingleInstanceLock()) {
 
     setTimeout(() => updater.check(), 10_000)
     setInterval(() => updater.check(), 6 * 60 * 60 * 1000)
-
-    console.log(`[fsvng-helper] запущен ${app.getVersion()}, данные: ${app.getPath('userData')}`)
+    console.log(`[fsvng-helper] запущен ${app.getVersion()}, права администратора: ${elevated ? 'да' : 'нет'}`)
   })
 
   app.on('before-quit', () => markQuitting())

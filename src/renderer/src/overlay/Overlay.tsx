@@ -1,6 +1,8 @@
-// Оверлей поверх игры: карточки отыгровок и предупреждения (слева, под чатом)
+// Оверлей поверх игры: уведомления отыгровок (слева) и панель (справа или где её поставили)
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Toast } from '../../../shared/api'
+import { api, isDemo, useStore } from '../common/store'
+import { Panel } from './Panel'
 
 interface Item extends Toast {
   leaving: boolean
@@ -10,12 +12,23 @@ const DEFAULT_TTL = 3000
 const LEAVE_MS = 240
 const MAX = 3
 
-const DEMO: Toast[] = [
-  { id: 'd1', kind: 'run', title: 'Показать жетон', text: 'Строка 1 из 1', progress: 1, hint: 'стоп End', ttl: 0 },
-  { id: 'd2', kind: 'warn', title: 'Отыгровка не отправлена', text: 'Активное окно — Discord.exe, а не GTA.', ttl: 0 }
-]
-
 export function Overlay() {
+  const app = useStore((s) => s.app)
+
+  useEffect(() => {
+    if (isDemo) document.body.classList.add('demo')
+    void useStore.getState().init()
+  }, [])
+
+  return (
+    <>
+      <Toasts />
+      {app && app.panel !== 'hidden' && <Panel />}
+    </>
+  )
+}
+
+function Toasts() {
   const [items, setItems] = useState<Item[]>([])
   const timers = useRef(new Map<string, number>())
 
@@ -41,24 +54,7 @@ export function Overlay() {
     [dismiss]
   )
 
-  useEffect(() => {
-    const api = window.overlay
-    if (!api) {
-      document.body.classList.add('demo')
-      DEMO.forEach(upsert)
-      return
-    }
-    const offToast = api.onToast(upsert)
-    const offAccent = api.onAccent((accent) => {
-      document.documentElement.style.setProperty('--accent', accent)
-      document.documentElement.style.setProperty('--accent-soft', `${accent}2e`)
-    })
-    api.ready()
-    return () => {
-      offToast()
-      offAccent()
-    }
-  }, [upsert])
+  useEffect(() => api.onToast(upsert), [upsert])
 
   return (
     <div className="stack">
@@ -66,12 +62,16 @@ export function Overlay() {
         <div key={t.id} className={`toast${t.leaving ? ' leaving' : ''}`} data-kind={t.kind}>
           <div className="toast-row">
             <span className="toast-icon" aria-hidden="true">
-              {t.kind === 'run' || t.kind === 'ok' ? (
+              {t.kind === 'run' ? (
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                  {t.kind === 'ok' ? <path d="M5 12l5 5 9-10" stroke="currentColor" strokeWidth="3" fill="none" strokeLinecap="round" strokeLinejoin="round" /> : <path d="M8 5l11 7-11 7z" />}
+                  <path d="M8 5l11 7-11 7z" />
+                </svg>
+              ) : t.kind === 'ok' ? (
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M5 12l5 5 9-10" />
                 </svg>
               ) : (
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round">
                   <path d="M12 7v6M12 17v.5" />
                 </svg>
               )}
@@ -82,7 +82,7 @@ export function Overlay() {
             </div>
             {t.hint && t.kind === 'run' && (
               <span className="toast-hint">
-                {t.hint.split(' ')[0]} <kbd>{t.hint.split(' ').slice(1).join(' ')}</kbd>
+                {t.hint.split(' ')[0]} <kbd className="kbd">{t.hint.split(' ').slice(1).join(' ')}</kbd>
               </span>
             )}
           </div>

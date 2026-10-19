@@ -10,11 +10,12 @@ import {
   type Profile,
   type Settings
 } from '../../../shared/settings'
-import { findOwner, HotkeyButton } from './hotkey'
-import { api, useSettings, useStore } from './store'
-import { Alert, formatDate, Icon, Segmented } from './ui'
+import { findOwner, HotkeyButton } from '../common/hotkey'
+import { api, useSettings, useStore } from '../common/store'
+import { Alert, formatDate, Icon, Segmented } from '../common/ui'
+import { TitleBar } from './App'
 
-export function SettingsTab() {
+export function SettingsPage() {
   const saved = useSettings()
   const [draft, setDraft] = useState<Settings>(saved)
   const [errors, setErrors] = useState<string[]>([])
@@ -22,7 +23,7 @@ export function SettingsTab() {
   const saveSettings = useStore((s) => s.saveSettings)
   const dirty = JSON.stringify(draft) !== JSON.stringify(saved)
 
-  // Настройки поменялись снаружи (трей, избранное) — подхватываем, если нет своих правок
+  // Настройки поменялись снаружи (трей, избранное, панель) — подхватываем, если своих правок нет
   const [base, setBase] = useState(saved)
   useEffect(() => {
     if (saved === base) return
@@ -40,33 +41,39 @@ export function SettingsTab() {
   }
 
   return (
-    <>
-      <div className="content">
-        <div className="page">
+    <div className="page">
+      <TitleBar title="Настройки" sub="изменения применяются после «Сохранить»" />
+      <div className="page-scroll">
+        <div className="settings-grid">
           <ProfileSection draft={draft} setDraft={setDraft} />
           <HotkeysSection draft={draft} setDraft={setDraft} />
+          <PanelSection draft={draft} setDraft={setDraft} />
           <ChatSection draft={draft} setDraft={setDraft} />
           <LookSection draft={draft} setDraft={setDraft} />
+          <LaunchSection draft={draft} setDraft={setDraft} />
           <GameSection draft={draft} setDraft={setDraft} />
           <LawsSection />
-          <DataSection draft={draft} setDraft={setDraft} />
+          <DataSection setDraft={setDraft} draft={draft} />
           <AboutSection />
         </div>
       </div>
-      <footer className="footer" style={{ flexDirection: 'column', alignItems: 'stretch', gap: 8 }}>
-        {errors.map((e) => (
-          <Alert key={e}>{e}</Alert>
-        ))}
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button type="button" className="btn grow" disabled={!dirty} onClick={() => setDraft(saved)}>
+      {(dirty || errors.length > 0 || savedFlash) && (
+        <div className="save-bar">
+          <div className="grow" style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {errors.map((e) => (
+              <Alert key={e}>{e}</Alert>
+            ))}
+            {errors.length === 0 && (savedFlash ? 'Сохранено' : 'Есть несохранённые изменения')}
+          </div>
+          <button type="button" className="btn" disabled={!dirty} onClick={() => setDraft(saved)}>
             Сбросить
           </button>
-          <button type="button" className="btn primary" style={{ flex: 2 }} disabled={!dirty} onClick={save}>
-            {savedFlash ? 'Сохранено' : 'Сохранить'}
+          <button type="button" className="btn primary" disabled={!dirty} onClick={save}>
+            Сохранить
           </button>
         </div>
-      </footer>
-    </>
+      )}
+    </div>
   )
 }
 
@@ -75,12 +82,47 @@ interface SectionProps {
   setDraft: (fn: (s: Settings) => Settings) => void
 }
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+function Section({ title, icon, children }: { title: string; icon?: Parameters<typeof Icon>[0]['name']; children: ReactNode }) {
   return (
     <section className="card" aria-label={title}>
-      <h2 className="caps">{title}</h2>
+      <div className="card-title">
+        {icon && <Icon name={icon} size={18} />}
+        <h2 className="caps" style={{ margin: 0 }}>
+          {title}
+        </h2>
+      </div>
       {children}
     </section>
+  )
+}
+
+function Range({
+  label,
+  value,
+  min,
+  max,
+  step,
+  format,
+  onChange
+}: {
+  label: string
+  value: number
+  min: number
+  max: number
+  step: number
+  format: (v: number) => string
+  onChange: (v: number) => void
+}) {
+  return (
+    <label className="field">
+      <span className="row-between">
+        {label}
+        <span className="mono" style={{ color: 'var(--text)' }}>
+          {format(value)}
+        </span>
+      </span>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
+    </label>
   )
 }
 
@@ -108,60 +150,58 @@ function ProfileSection({ draft, setDraft }: SectionProps) {
   const label = (p: Profile) => [p.name, p.surname].filter(Boolean).join(' ') || 'Без имени'
 
   return (
-    <Section title="Профиль персонажа">
+    <Section title="Профиль персонажа" icon="user">
       <div style={{ display: 'flex', gap: 8 }}>
-        <select
-          className="input"
-          style={{ flex: 1, height: 44, fontWeight: 600 }}
-          aria-label="Профиль"
-          value={profile.id}
-          onChange={(e) => setDraft((s) => ({ ...s, activeProfileId: e.target.value }))}
-        >
+        <select className="input" style={{ flex: 1, fontWeight: 600 }} aria-label="Профиль" value={profile.id} onChange={(e) => setDraft((s) => ({ ...s, activeProfileId: e.target.value }))}>
           {draft.profiles.map((p) => (
             <option key={p.id} value={p.id}>
               {label(p)}
             </option>
           ))}
         </select>
-        <button type="button" className="btn small" style={{ height: 44 }} aria-label="Добавить профиль" title="Добавить профиль" onClick={addProfile}>
+        <button type="button" className="btn small" style={{ height: 40 }} title="Добавить профиль" aria-label="Добавить профиль" onClick={addProfile}>
           <Icon name="plus" size={16} />
         </button>
-        <button
-          type="button"
-          className="btn small"
-          style={{ height: 44 }}
-          aria-label="Удалить профиль"
-          title="Удалить профиль"
-          disabled={draft.profiles.length < 2}
-          onClick={removeProfile}
-        >
+        <button type="button" className="btn small" style={{ height: 40 }} title="Удалить профиль" aria-label="Удалить профиль" disabled={draft.profiles.length < 2} onClick={removeProfile}>
           <Icon name="trash" size={16} />
         </button>
       </div>
+      <ProfileFields profile={profile} onChange={set} />
+      <p className="hint" style={{ margin: 0 }}>
+        Подставляются в отыгровки вместо {'{имя}'}, {'{фамилия}'}, {'{звание}'}, {'{подразделение}'}, {'{жетон}'} и {'{позывной}'}.
+      </p>
+    </Section>
+  )
+}
+
+/** Поля профиля — и в настройках, и в мастере первого запуска */
+export function ProfileFields({ profile, onChange }: { profile: Profile; onChange: (patch: Partial<Profile>) => void }) {
+  return (
+    <>
       <div className="grid-2">
         <label className="field">
           Имя
-          <input value={profile.name} onChange={(e) => set({ name: e.target.value })} />
+          <input value={profile.name} onChange={(e) => onChange({ name: e.target.value })} />
         </label>
         <label className="field">
           Фамилия
-          <input value={profile.surname} onChange={(e) => set({ surname: e.target.value })} />
+          <input value={profile.surname} onChange={(e) => onChange({ surname: e.target.value })} />
         </label>
         <label className="field">
           Звание
-          <input list="ranks" value={profile.rank} onChange={(e) => set({ rank: e.target.value })} />
+          <input list="ranks" value={profile.rank} onChange={(e) => onChange({ rank: e.target.value })} />
         </label>
         <label className="field">
           Подразделение
-          <input list="units" value={profile.unit} onChange={(e) => set({ unit: e.target.value })} />
+          <input list="units" value={profile.unit} onChange={(e) => onChange({ unit: e.target.value })} />
         </label>
         <label className="field">
           Номер жетона
-          <input className="mono" value={profile.badge} onChange={(e) => set({ badge: e.target.value })} />
+          <input className="mono" value={profile.badge} onChange={(e) => onChange({ badge: e.target.value })} />
         </label>
         <label className="field">
           Позывной
-          <input value={profile.callsign} onChange={(e) => set({ callsign: e.target.value })} />
+          <input value={profile.callsign} onChange={(e) => onChange({ callsign: e.target.value })} />
         </label>
       </div>
       <datalist id="ranks">
@@ -183,13 +223,10 @@ function ProfileSection({ draft, setDraft }: SectionProps) {
             { value: 'm', label: 'Мужской' },
             { value: 'f', label: 'Женский' }
           ]}
-          onChange={(gender) => set({ gender })}
+          onChange={(gender) => onChange({ gender })}
         />
       </div>
-      <p className="hint" style={{ margin: 0 }}>
-        Подставляются в отыгровки вместо {'{имя}'}, {'{фамилия}'}, {'{звание}'}, {'{подразделение}'}, {'{жетон}'} и {'{позывной}'}.
-      </p>
-    </Section>
+    </>
   )
 }
 
@@ -198,8 +235,7 @@ function ProfileSection({ draft, setDraft }: SectionProps) {
 function HotkeysSection({ draft, setDraft }: SectionProps) {
   const [conflict, setConflict] = useState<{ action: HotkeyAction; value: string } | null>(null)
 
-  const assign = (action: HotkeyAction, value: string | null) =>
-    setDraft((s) => ({ ...s, hotkeys: { ...s.hotkeys, [action]: value } }))
+  const assign = (action: HotkeyAction, value: string | null) => setDraft((s) => ({ ...s, hotkeys: { ...s.hotkeys, [action]: value } }))
 
   const take = () => {
     if (!conflict) return
@@ -216,7 +252,7 @@ function HotkeysSection({ draft, setDraft }: SectionProps) {
   const conflictOwner = conflict ? findOwner(draft, conflict.value, { kind: 'action', id: conflict.action }) : null
 
   return (
-    <Section title="Горячие клавиши">
+    <Section title="Горячие клавиши" icon="keyboard">
       <div>
         {HOTKEY_ACTIONS.map((a) => {
           const owner = findOwner(draft, draft.hotkeys[a.id], { kind: 'action', id: a.id })
@@ -246,11 +282,10 @@ function HotkeysSection({ draft, setDraft }: SectionProps) {
       {conflict && conflictOwner && (
         <Alert>
           <span>
-            {conflict.value} уже занята{' '}
-            {conflictOwner.kind === 'bind' ? conflictOwner.label : `действием «${conflictOwner.label}»`}.
+            {conflict.value} уже занята {conflictOwner.kind === 'bind' ? conflictOwner.label : `действием «${conflictOwner.label}»`}.
           </span>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button type="button" className="btn small primary" style={{ background: 'var(--warn)' }} onClick={take}>
+            <button type="button" className="btn small primary" onClick={take}>
               Переназначить
             </button>
             <button type="button" className="btn small" onClick={() => setConflict(null)}>
@@ -260,8 +295,37 @@ function HotkeysSection({ draft, setDraft }: SectionProps) {
         </Alert>
       )}
       <p className="hint" style={{ margin: 0 }}>
-        Клавиши отыгровок назначаются в редакторе на вкладке «Отыгровки». Срабатывают, только когда GTA на переднем плане.
+        Клавиши отыгровок задаются в редакторе на странице «Отыгровки». Срабатывают, только когда GTA на переднем плане.
       </p>
+    </Section>
+  )
+}
+
+// ---------- Панель в игре ----------
+
+function PanelSection({ draft, setDraft }: SectionProps) {
+  const o = draft.overlay
+  const set = (patch: Partial<Settings['overlay']>) => setDraft((s) => ({ ...s, overlay: { ...s.overlay, ...patch } }))
+  const panel = useStore((s) => s.app!.panel)
+  return (
+    <Section title="Панель в игре" icon="panel">
+      <p className="hint" style={{ margin: 0 }}>
+        Компактная панель поверх GTA: избранные памятки, поиск статьи, алгоритм, отыгровки. Перетащить её можно за заголовок,
+        когда она активна ({draft.hotkeys.interact ?? 'клавиша не назначена'}).
+      </p>
+      <Range label="Ширина" value={o.width} min={320} max={560} step={10} format={(v) => `${v} px`} onChange={(width) => set({ width })} />
+      <Range label="Наибольшая высота" value={o.maxHeight} min={35} max={95} step={5} format={(v) => `${v}% экрана`} onChange={(maxHeight) => set({ maxHeight })} />
+      <Range label="Непрозрачность" value={o.opacity} min={55} max={100} step={5} format={(v) => `${v}%`} onChange={(opacity) => set({ opacity })} />
+      <Range label="Масштаб текста" value={o.scale} min={80} max={140} step={5} format={(v) => `${v}%`} onChange={(scale) => set({ scale })} />
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+        <button type="button" className="btn small" onClick={() => api.panelAction(panel === 'hidden' ? 'passive' : 'hidden')}>
+          <Icon name="panel" size={15} />
+          {panel === 'hidden' ? 'Показать панель' : 'Скрыть панель'}
+        </button>
+        <button type="button" className="btn small ghost" disabled={o.x === null && o.y === null} onClick={() => set({ x: null, y: null })}>
+          Вернуть на место
+        </button>
+      </div>
     </Section>
   )
 }
@@ -272,7 +336,7 @@ function ChatSection({ draft, setDraft }: SectionProps) {
   const chat = draft.chat
   const set = (patch: Partial<Settings['chat']>) => setDraft((s) => ({ ...s, chat: { ...s.chat, ...patch } }))
   return (
-    <Section title="Отправка в чат">
+    <Section title="Отправка в чат" icon="chat">
       <div className="setting-row" style={{ borderBottom: 0, minHeight: 40 }}>
         <span className="label">Клавиша открытия чата</span>
         <HotkeyButton label="Клавиша чата" allowModifiers={false} value={chat.openKey} onChange={(v) => v && set({ openKey: v })} />
@@ -294,18 +358,8 @@ function ChatSection({ draft, setDraft }: SectionProps) {
             : 'Вставляет строку через Ctrl+V. Попробуйте, если в чате теряются буквы.'}
         </span>
       </div>
-      <label className="field">
-        <span className="row-between">
-          Пауза между строками <span className="mono" style={{ color: 'var(--text)' }}>{(chat.lineDelayMs / 1000).toFixed(1)} с</span>
-        </span>
-        <input type="range" min={0} max={3000} step={100} value={chat.lineDelayMs} onChange={(e) => set({ lineDelayMs: Number(e.target.value) })} />
-      </label>
-      <label className="field">
-        <span className="row-between">
-          Пауза после открытия чата <span className="mono" style={{ color: 'var(--text)' }}>{(chat.openDelayMs / 1000).toFixed(1)} с</span>
-        </span>
-        <input type="range" min={100} max={1500} step={50} value={chat.openDelayMs} onChange={(e) => set({ openDelayMs: Number(e.target.value) })} />
-      </label>
+      <Range label="Пауза между строками" value={chat.lineDelayMs} min={0} max={3000} step={100} format={(v) => `${(v / 1000).toFixed(1)} с`} onChange={(lineDelayMs) => set({ lineDelayMs })} />
+      <Range label="Пауза после открытия чата" value={chat.openDelayMs} min={100} max={1500} step={50} format={(v) => `${(v / 1000).toFixed(2)} с`} onChange={(openDelayMs) => set({ openDelayMs })} />
       <label className="check">
         <input type="checkbox" checked={chat.closeWithEnter} onChange={(e) => set({ closeWithEnter: e.target.checked })} />
         Закрывать чат Enter после отыгровки
@@ -320,38 +374,10 @@ function LookSection({ draft, setDraft }: SectionProps) {
   const ui = draft.ui
   const set = (patch: Partial<Settings['ui']>) => setDraft((s) => ({ ...s, ui: { ...s.ui, ...patch } }))
   return (
-    <Section title="Оверлей и вид">
-      <label className="field">
-        <span className="row-between">
-          Прозрачность «стекла» <span className="mono" style={{ color: 'var(--text)' }}>{ui.glassOpacity}%</span>
-        </span>
-        <input type="range" min={30} max={100} step={5} value={ui.glassOpacity} onChange={(e) => set({ glassOpacity: Number(e.target.value) })} />
-      </label>
-      <div className="setting-row" style={{ borderBottom: 0, minHeight: 40 }}>
-        <label className="label" htmlFor="scale">
-          Масштаб интерфейса
-        </label>
-        <select id="scale" className="input" style={{ height: 40 }} value={ui.scale} onChange={(e) => set({ scale: Number(e.target.value) })}>
-          {[90, 100, 110, 125, 150].map((v) => (
-            <option key={v} value={v}>
-              {v}%
-            </option>
-          ))}
-        </select>
-      </div>
-      <div>
-        <label className="check">
-          <input type="checkbox" checked={ui.alwaysOnTop} onChange={(e) => set({ alwaysOnTop: e.target.checked })} />
-          Окно всегда поверх игры
-        </label>
-        <label className="check">
-          <input type="checkbox" checked={ui.autostart} onChange={(e) => set({ autostart: e.target.checked })} />
-          Запускать вместе с Windows (в трее)
-        </label>
-      </div>
+    <Section title="Вид" icon="monitor">
       <div className="field">
         Акцентный цвет
-        <div role="group" aria-label="Акцентный цвет" style={{ display: 'flex', gap: 10 }}>
+        <div role="group" aria-label="Акцентный цвет" style={{ display: 'flex', gap: 12 }}>
           {ACCENTS.map((a) => {
             const on = a.color.toLowerCase() === ui.accent.toLowerCase()
             return (
@@ -363,10 +389,10 @@ function LookSection({ draft, setDraft }: SectionProps) {
                 title={a.label}
                 onClick={() => set({ accent: a.color })}
                 style={{
-                  width: 40,
-                  height: 40,
+                  width: 38,
+                  height: 38,
                   padding: 0,
-                  borderRadius: 20,
+                  borderRadius: 19,
                   background: a.color,
                   border: `3px solid ${on ? 'var(--text)' : 'var(--card)'}`,
                   boxShadow: '0 0 0 1px var(--line-3)'
@@ -376,6 +402,55 @@ function LookSection({ draft, setDraft }: SectionProps) {
           })}
         </div>
       </div>
+      <div className="setting-row" style={{ borderBottom: 0, minHeight: 40 }}>
+        <label className="label" htmlFor="scale">
+          Масштаб окна
+        </label>
+        <select id="scale" className="input" value={ui.scale} onChange={(e) => set({ scale: Number(e.target.value) })}>
+          {[90, 100, 110, 125, 150].map((v) => (
+            <option key={v} value={v}>
+              {v}%
+            </option>
+          ))}
+        </select>
+      </div>
+      <label className="check">
+        <input type="checkbox" checked={ui.alwaysOnTop} onChange={(e) => set({ alwaysOnTop: e.target.checked })} />
+        Окно приложения всегда поверх игры
+      </label>
+    </Section>
+  )
+}
+
+// ---------- Запуск и права ----------
+
+function LaunchSection({ draft, setDraft }: SectionProps) {
+  const elevated = useStore((s) => s.app!.elevated)
+  return (
+    <Section title="Запуск и права" icon="admin">
+      <div className="setting-row" style={{ minHeight: 40 }}>
+        <span className={`dot${elevated ? ' ok' : ' warn'}`} aria-hidden="true" />
+        <span className="label">
+          {elevated ? 'Запущено с правами администратора' : 'Запущено без прав администратора'}
+          <small>
+            {elevated
+              ? 'Клавиши и панель работают, даже если RMRP запущен от администратора.'
+              : 'Если игра запущена от администратора, клавиши в ней не сработают.'}
+          </small>
+        </span>
+        {!elevated && (
+          <button type="button" className="btn small primary" onClick={() => api.restartAsAdmin()}>
+            Перезапустить
+          </button>
+        )}
+      </div>
+      <label className="check">
+        <input type="checkbox" checked={draft.ui.autostart} onChange={(e) => setDraft((s) => ({ ...s, ui: { ...s.ui, autostart: e.target.checked } }))} />
+        Запускать вместе с Windows — в трее, с правами администратора
+      </label>
+      <p className="hint" style={{ margin: 0 }}>
+        Права приложение просит само. Окно Windows с вопросом появится один раз — дальше запуск идёт без него.
+      </p>
     </Section>
   )
 }
@@ -384,11 +459,12 @@ function LookSection({ draft, setDraft }: SectionProps) {
 
 function GameSection({ draft, setDraft }: SectionProps) {
   const game = useStore((s) => s.app!.game)
+  const patchSettings = useStore((s) => s.patchSettings)
   const [names, setNames] = useState(draft.game.processNames.join(', '))
   useEffect(() => setNames(draft.game.processNames.join(', ')), [draft.game.processNames])
 
   return (
-    <Section title="Игра и проверка">
+    <Section title="Игра и проверка" icon="monitor">
       <div className="setting-row" style={{ minHeight: 40 }}>
         <span className={`dot${game.active ? ' ok' : ''}`} aria-hidden="true" />
         <span className="label">
@@ -396,9 +472,7 @@ function GameSection({ draft, setDraft }: SectionProps) {
           <small>Последнее активное окно: {game.foregroundExe || '—'}</small>
         </span>
       </div>
-      {game.fullscreenSeen && (
-        <Alert>Windows сообщила о полноэкранном режиме игры. Поверх него окна не видны — нужен «Оконный без рамки».</Alert>
-      )}
+      {game.fullscreenSeen && <Alert>Windows сообщила о полноэкранном режиме игры. Поверх него окна не видны — нужен «Оконный без рамки».</Alert>}
       <label className="field">
         Файл игры (.exe), через запятую
         <input
@@ -423,6 +497,9 @@ function GameSection({ draft, setDraft }: SectionProps) {
         <input type="checkbox" checked={draft.testMode} onChange={(e) => setDraft((s) => ({ ...s, testMode: e.target.checked }))} />
         Тестовый режим — отыгровки печатаются в любое окно (например, Блокнот)
       </label>
+      <button type="button" className="btn small ghost" style={{ alignSelf: 'flex-start' }} onClick={() => patchSettings((s) => ({ ...s, onboarded: false }))}>
+        Пройти первую настройку заново
+      </button>
     </Section>
   )
 }
@@ -433,10 +510,10 @@ function LawsSection() {
   const laws = useStore((s) => s.app!.laws)
   const loading = useStore((s) => s.app!.lawsLoading)
   return (
-    <Section title="Законы с форума">
+    <Section title="Законы с форума" icon="book">
       <div>
         {laws.map((l) => (
-          <div key={l.id} className="setting-row" style={{ minHeight: 44 }}>
+          <div key={l.id} className="setting-row" style={{ minHeight: 42 }}>
             <span className="label">
               {l.title}
               <small style={{ color: l.error ? 'var(--warn-text)' : undefined }}>
@@ -451,8 +528,7 @@ function LawsSection() {
         {loading ? 'Загружаю…' : 'Проверить обновления законов'}
       </button>
       <p className="hint" style={{ margin: 0 }}>
-        Законы берутся из тем на forum.rmrp.ru и обновляются сами раз в 12 часов. Краткие памятки по УК и КоАП собираются из
-        свежего текста.
+        Законы берутся из тем на forum.rmrp.ru и обновляются сами раз в 12 часов. Памятки по УК и КоАП собираются из свежего текста.
       </p>
     </Section>
   )
@@ -463,13 +539,9 @@ function LawsSection() {
 function DataSection({ draft, setDraft }: SectionProps) {
   const [message, setMessage] = useState('')
   return (
-    <Section title="Данные">
+    <Section title="Данные" icon="download">
       <div className="grid-2" style={{ gap: 8 }}>
-        <button
-          type="button"
-          className="btn"
-          onClick={async () => setMessage((await api.exportPack()) ? 'Пак сохранён.' : '')}
-        >
+        <button type="button" className="btn" onClick={async () => setMessage((await api.exportPack()) ? 'Пак сохранён.' : '')}>
           <Icon name="upload" size={16} />
           Экспорт пака
         </button>
@@ -505,8 +577,8 @@ function DataSection({ draft, setDraft }: SectionProps) {
       </button>
       {message && <span className="hint">{message}</span>}
       <p className="hint" style={{ margin: 0 }}>
-        Пак — один файл с отыгровками и алгоритмами. Можно скинуть всему отделу: при импорте они добавятся к своим.
-        {draft.binds.length ? ` Сейчас отыгровок: ${draft.binds.length}.` : ''}
+        Пак — один файл с отыгровками и алгоритмами. Можно скинуть всему отделу: при импорте они добавятся к своим. Сейчас
+        отыгровок: {draft.binds.length}.
       </p>
     </Section>
   )
@@ -525,10 +597,10 @@ function AboutSection() {
     ready: `Версия ${update.version} готова к установке`,
     none: 'Установлена последняя версия',
     error: `Не удалось проверить: ${update.message ?? ''}`,
-    unsupported: 'Автообновление не настроено для этой сборки'
+    unsupported: 'Автообновление работает в установленной версии'
   }
   return (
-    <Section title="О программе">
+    <Section title="О программе" icon="shield">
       <div className="setting-row" style={{ borderBottom: 0, minHeight: 40 }}>
         <span className="label">
           ФСВНГ Helper {version}
@@ -549,6 +621,10 @@ function AboutSection() {
           </button>
         )}
       </div>
+      <button type="button" className="btn small ghost" style={{ alignSelf: 'flex-start' }} onClick={() => api.openExternal('https://github.com/schwf3xlr/fsvng-helper/releases')}>
+        <Icon name="external" size={15} />
+        Все версии на GitHub
+      </button>
     </Section>
   )
 }
