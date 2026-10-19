@@ -387,7 +387,7 @@ if (!app.requestSingleInstanceLock()) {
     setTimeout(() => updater.check(), 10_000)
     setInterval(() => updater.check(), 6 * 60 * 60 * 1000)
 
-    console.log(`[жетон] запущен ${app.getVersion()}, данные: ${app.getPath('userData')}`)
+    console.log(`[fsvng-helper] запущен ${app.getVersion()}, данные: ${app.getPath('userData')}`)
   })
 
   app.on('before-quit', () => markQuitting())
