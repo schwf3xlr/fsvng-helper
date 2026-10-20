@@ -8,7 +8,7 @@ import { app, BrowserWindow, screen, type Rectangle } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PanelMode, WindowMode } from '../shared/api'
-import { clearTopmost, forceForeground, forceTopmost, foregroundHwnd, hwndFromHandle, type Hwnd } from './win32'
+import { clearTopmost, forceForeground, forceTopmost, foregroundHwnd, hwndFromHandle, setNoActivate, type Hwnd } from './win32'
 
 const preload = () => join(__dirname, '../preload/index.js')
 /**
@@ -165,6 +165,8 @@ export class OverlayWindow {
   panel: PanelMode = 'hidden'
   private returnFocusTo: Hwnd | null = null
   private display = screen.getPrimaryDisplay()
+  /** Chromium уже разрешено активировать окно (нужно для ввода в панели) */
+  private canActivate = false
 
   constructor(private readonly onPanelChange: (mode: PanelMode) => void) {
     this.win = new BrowserWindow({
@@ -231,6 +233,14 @@ export class OverlayWindow {
     forceTopmost(this.hwnd)
   }
 
+  /**
+   * Видимая и скрытая панель не трогают фокус: игра остаётся активной, курсор не
+   * появляется. Фокус панель берёт только в режиме «управлять» и отдаёт его обратно.
+   *
+   * BrowserWindow.setFocusable(false) здесь нельзя: Electron внутри делает активным
+   * следующее окно под оверлеем (панель задач) — игра теряет фокус и показывает
+   * курсор, а хоткеи перестают срабатывать, пока не щёлкнешь в игру.
+   */
   setPanel(mode: PanelMode, returnFocus = true): void {
     const win = this.win
     // Сразу, до смены фокуса: обработчик blur не должен увидеть старый режим
@@ -238,7 +248,13 @@ export class OverlayWindow {
     if (mode === 'interactive') {
       const fg = foregroundHwnd()
       if (fg && fg != this.hwnd) this.returnFocusTo = fg
-      win.setFocusable(true)
+      if (!this.canActivate) {
+        // Один раз: разрешить Chromium активацию и ввод. Окно в панели задач не нужно
+        this.canActivate = true
+        win.setFocusable(true)
+        win.setSkipTaskbar(true)
+      }
+      setNoActivate(this.hwnd, false)
       // Клики проходят насквозь, пока курсор не над панелью (см. setMouseOverPanel)
       win.setIgnoreMouseEvents(true, { forward: true })
       this.raise()
@@ -248,7 +264,7 @@ export class OverlayWindow {
     } else {
       const wasFocused = win.isFocused()
       win.setIgnoreMouseEvents(true)
-      win.setFocusable(false)
+      setNoActivate(this.hwnd, true)
       if (wasFocused && returnFocus && this.returnFocusTo) forceForeground(this.returnFocusTo)
       if (mode === 'passive') this.raise()
     }

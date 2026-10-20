@@ -1,4 +1,5 @@
 import { app, clipboard, ipcMain, Menu, Notification, shell, Tray } from 'electron'
+import { setPriority, constants as osConstants } from 'node:os'
 import { join } from 'node:path'
 import { IPC, type AppState, type GameStatus, type PanelMode, type Toast, type WindowMode } from '../shared/api'
 import type { LawId } from '../shared/laws'
@@ -15,10 +16,18 @@ import { BindCancelled, BindRunner } from './binds'
 import { relaunchElevated, syncTasks } from './elevation'
 import { HotkeyManager, hotkeyId, parseHotkey, type Binding } from './hotkeys'
 import { LawsService } from './laws/service'
+import { log, logsDir } from './log'
 import { exportPack, importPack } from './pack'
 import { loadSettings, normalizeSettings, writeSettings } from './settings'
 import { Updater } from './updater'
-import { getForeground, isD3DFullscreen, isElevated, windowRect, type ForegroundWindow } from './win32'
+import {
+  disablePowerThrottling,
+  getForeground,
+  isD3DFullscreen,
+  isElevated,
+  windowRect,
+  type ForegroundWindow
+} from './win32'
 import { appIcon, MainWindow, markQuitting, OverlayWindow } from './windows'
 
 let settings: Settings
@@ -30,7 +39,7 @@ let game: GameStatus = { active: false, foregroundExe: '', fullscreen: false, fu
 let fullscreenNotified = false
 const elevated = isElevated()
 
-const hotkeys = new HotkeyManager()
+const hotkeys = new HotkeyManager(log)
 const runner = new BindRunner()
 const laws = new LawsService(() => pushState({ laws: laws.meta(), lawsLoading: laws.loading }))
 const updater = new Updater((update) => pushState({ update }))
@@ -97,6 +106,11 @@ function pollGame(): void {
   if (active === game.active && fullscreen === game.fullscreen && exe === game.foregroundExe) return
 
   const becameActive = active && !game.active
+  if (active !== game.active) {
+    // Отпускания клавиш, пока игра была не в фокусе, могли не дойти — начинаем с чистого листа
+    hotkeys.releaseAll()
+    log(active ? `игра активна (${fg?.exe})` : `игра не активна, на переднем плане: ${exe || 'неизвестно'}`)
+  }
   game = { active, foregroundExe: exe, fullscreen, fullscreenSeen: game.fullscreenSeen || fullscreen }
   pushState({ game })
   updateTray()
@@ -362,6 +376,8 @@ function updateTray(): void {
         click: (item) => patchSettings({ testMode: item.checked })
       },
       { label: 'Обновить законы с форума', click: () => void laws.refresh() },
+      { label: 'Перезапустить перехват клавиш', click: () => hotkeys.restart('из меню трея') },
+      { label: 'Папка с журналом', click: () => void shell.openPath(logsDir()) },
       { type: 'separator' },
       { label: 'Выход', click: () => app.quit() }
     ])
@@ -437,6 +453,13 @@ if (relaunchElevated()) {
 
   app.whenReady().then(() => {
     app.setAppUserModelId('ru.rmrp.fsvng-helper')
+    // Хук клавиатуры должен отвечать вовремя, даже когда игра грузит процессор
+    try {
+      disablePowerThrottling()
+      setPriority(osConstants.priority.PRIORITY_ABOVE_NORMAL)
+    } catch (e) {
+      log(`приоритет процесса не изменён: ${(e as Error).message}`)
+    }
 
     const loaded = loadSettings()
     settings = loaded.settings
@@ -469,7 +492,7 @@ if (relaunchElevated()) {
 
     setTimeout(() => updater.check(), 10_000)
     setInterval(() => updater.check(), 6 * 60 * 60 * 1000)
-    console.log(`[fsvng-helper] запущен ${app.getVersion()}, права администратора: ${elevated ? 'да' : 'нет'}`)
+    log(`запущен ${app.getVersion()}, права администратора: ${elevated ? 'да' : 'нет'}`)
   })
 
   app.on('before-quit', () => markQuitting())

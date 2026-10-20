@@ -50,6 +50,12 @@ const SetWindowPos = user32.func('SetWindowPos', 'bool', [
   'uint32_t'
 ])
 const GetCurrentThreadId = kernel32.func('GetCurrentThreadId', 'uint32_t', [])
+const GetWindowLongPtrW = user32.func('GetWindowLongPtrW', 'intptr_t', ['uintptr_t', 'int32_t'])
+const SetWindowLongPtrW = user32.func('SetWindowLongPtrW', 'intptr_t', ['uintptr_t', 'int32_t', 'intptr_t'])
+const GetLastInputInfo = user32.func('GetLastInputInfo', 'bool', ['void *'])
+const GetTickCount = kernel32.func('GetTickCount', 'uint32_t', [])
+const GetCurrentProcess = kernel32.func('GetCurrentProcess', 'void *', [])
+const SetProcessInformation = kernel32.func('SetProcessInformation', 'bool', ['void *', 'int32_t', 'void *', 'uint32_t'])
 const OpenProcess = kernel32.func('OpenProcess', 'void *', ['uint32_t', 'bool', 'uint32_t'])
 const QueryFullProcessImageNameW = kernel32.func('QueryFullProcessImageNameW', 'bool', [
   'void *',
@@ -270,4 +276,38 @@ export function isD3DFullscreen(): boolean {
   const state = new Int32Array(1)
   if (SHQueryUserNotificationState(state) !== 0) return false
   return state[0] === QUNS_RUNNING_D3D_FULL_SCREEN
+}
+
+const GWL_EXSTYLE = -20
+const WS_EX_NOACTIVATE = 0x08000000
+
+/**
+ * Можно ли активировать окно (забрать фокус у игры). Ставим флаг сами:
+ * BrowserWindow.setFocusable(false) внутри делает активным следующее окно —
+ * обычно панель задач, — и игра теряет фокус, показывает курсор.
+ */
+export function setNoActivate(hwnd: Hwnd, on: boolean): void {
+  const style = Number(GetWindowLongPtrW(hwnd, GWL_EXSTYLE))
+  const next = on ? style | WS_EX_NOACTIVATE : style & ~WS_EX_NOACTIVATE
+  if (next !== style) SetWindowLongPtrW(hwnd, GWL_EXSTYLE, next)
+}
+
+/** Сколько миллисекунд назад в системе была клавиатура или мышь (по любому окну) */
+export function msSinceLastInput(): number {
+  const info = Buffer.alloc(8)
+  info.writeUInt32LE(8, 0)
+  if (!GetLastInputInfo(info)) return 0
+  return (GetTickCount() - info.readUInt32LE(4)) >>> 0
+}
+
+/**
+ * Отказ от «эффективного режима» Windows 11: свёрнутому в трей процессу иначе урезают
+ * процессор, хук клавиатуры не успевает ответить, и Windows молча его снимает.
+ */
+export function disablePowerThrottling(): void {
+  const state = Buffer.alloc(12)
+  state.writeUInt32LE(1, 0) // PROCESS_POWER_THROTTLING_CURRENT_VERSION
+  state.writeUInt32LE(1, 4) // ControlMask: EXECUTION_SPEED
+  state.writeUInt32LE(0, 8) // StateMask: 0 — не замедлять
+  SetProcessInformation(GetCurrentProcess(), 4 /* ProcessPowerThrottling */, state, state.length)
 }
