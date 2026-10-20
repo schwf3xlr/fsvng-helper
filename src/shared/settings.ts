@@ -34,16 +34,37 @@ export interface Checklist {
   /** Откуда взято: «ст. 10 ПК» */
   source?: string
   steps: string[]
+  /** false — просто список шагов, без галочек */
+  checkable?: boolean
 }
 
-export type HotkeyAction = 'window' | 'panel' | 'interact' | 'stop'
+export const isCheckable = (c: Checklist) => c.checkable !== false
+
+export type HotkeyAction = 'window' | 'panel' | 'interact' | 'step' | 'stepBack' | 'stop'
 
 export const HOTKEY_ACTIONS: { id: HotkeyAction; label: string; hint?: string }[] = [
-  { id: 'window', label: 'Окно приложения', hint: 'открыть поверх игры или спрятать' },
-  { id: 'panel', label: 'Панель в игре', hint: 'показать или спрятать, клики идут в игру' },
-  { id: 'interact', label: 'Управлять панелью', hint: 'поиск, галочки, мышь; Esc — назад в игру' },
+  { id: 'window', label: 'Окно приложения', hint: 'открыть или спрятать' },
+  { id: 'panel', label: 'Панель в игре', hint: 'показать или спрятать, мышь остаётся у игры' },
+  { id: 'interact', label: 'Управлять панелью', hint: 'курсор, поиск, кнопки; Esc — назад в игру' },
+  { id: 'step', label: 'Отметить шаг алгоритма', hint: 'следующий шаг в панели — без мыши' },
+  { id: 'stepBack', label: 'Снять отметку шага', hint: 'вернуть последний отмеченный шаг' },
   { id: 'stop', label: 'Остановить отыгровку' }
 ]
+
+/** Клавиши, которые занимает сама игра: хоткей сработает, но игра тоже отреагирует */
+export const RESERVED_KEYS: Record<string, string> = {
+  Home: 'в GTA V открывает оверлей Rockstar — с ним появляется курсор мыши',
+  Escape: 'открывает меню игры',
+  Tab: 'в игре — выбор оружия',
+  T: 'открывает чат',
+  Enter: 'отправляет сообщение в чат'
+}
+
+/** Чем клавиша без модификаторов мешает в игре; null — не мешает */
+export function reservedKeyNote(hotkey: string | null): string | null {
+  if (!hotkey || hotkey.includes('+')) return null
+  return RESERVED_KEYS[hotkey] ?? null
+}
 
 export type PanelTab = 'memos' | 'search' | 'checklist' | 'binds'
 
@@ -64,8 +85,8 @@ export interface Settings {
   }
   ui: {
     accent: string
+    /** Масштаб окна, % (SCALE_MIN–SCALE_MAX) */
     scale: number
-    alwaysOnTop: boolean
     autostart: boolean
     lawFontSize: number
   }
@@ -78,6 +99,7 @@ export interface Settings {
     /** Наибольшая высота, % высоты экрана */
     maxHeight: number
     opacity: number
+    /** Масштаб панели, % (SCALE_MIN–SCALE_MAX) */
     scale: number
     tab: PanelTab
     checklistId: string | null
@@ -99,7 +121,17 @@ export interface Settings {
   checks: Record<string, number[]>
   /** Статьи в калькуляторе: "uk:37:2", "koap:8.7:" — общие для окна, панели и {статьи} */
   calc: string[]
+  /**
+   * Статьи калькулятора с другой мерой: по УК — штраф вместо срока (ч. 2 ст. 13 ПК),
+   * по КоАП — арест вместо штрафа (ст. 4.6 КоАП)
+   */
+  calcAlt: string[]
+  /** До какой версии стандартных отыгровок обновлены бинды (см. main/settings.ts) */
+  bindsRev: number
 }
+
+export const SCALE_MIN = 60
+export const SCALE_MAX = 160
 
 /** Крап — цвет беретов и знамён Росгвардии */
 export const ACCENTS = [
@@ -205,8 +237,8 @@ export function renderLine(text: string, profile: Profile, calc: string[] = [], 
     .replace(/\{([\p{L}\p{N}_]+)\}/gu, (whole, key: string) => values[key.toLowerCase()] ?? whole)
 }
 
-/** Лимит длины строки в чате RMRP — проверяем с запасом */
-export const CHAT_LINE_LIMIT = 150
+/** Длинные сообщения чат RMRP принимает — предупреждаем только о совсем огромных */
+export const CHAT_LINE_LIMIT = 500
 
 export function uid(): string {
   return Math.random().toString(36).slice(2, 10)
@@ -214,49 +246,21 @@ export function uid(): string {
 
 const line = (text: string): BindLine => ({ text, delayMs: null })
 
+/** Версия набора стандартных отыгровок */
+export const BINDS_REV = 2
+
 export const DEFAULT_BINDS: Bind[] = [
   {
     id: 'badge',
     name: 'Показать жетон',
     hotkey: 'Alt+1',
     enterAfterEach: true,
-    lines: [line('/do На бронежилете висит жетон «УФСВНГ | {подразделение} | {фамилия} | {жетон}».')]
-  },
-  {
-    id: 'wanted',
-    name: 'Выдать розыск по РП',
-    hotkey: 'Alt+2',
-    enterAfterEach: true,
-    lines: [
-      line('/do КПК на поясе.'),
-      line('/me {снял|сняла} КПК с пояса.'),
-      line('/me {включил|включила} КПК и {авторизовался|авторизовалась} в МОССЕТИ.'),
-      line('/do КПК включён и авторизован в МОССЕТИ.'),
-      line('/me {вбил|вбила} Ф.И.О. задержанного.'),
-      line('/do Выдало личное дело.'),
-      line('/me {заполнил|заполнила} данные согласно ранее инкриминированным статьям.'),
-      line('/do Протокол ареста заполнен.'),
-      line('/me {повесил|повесила} КПК на пояс.')
-    ]
-  },
-  {
-    id: 'car',
-    name: 'Осмотреть машину на взлом',
-    hotkey: 'Alt+3',
-    enterAfterEach: true,
-    lines: [
-      line('/do {Осмотрел|Осмотрела} транспортное средство.'),
-      line('/me {осмотрел|осмотрела} замок двери Т/С.'),
-      line('/do {Достал|Достала} спец. инструмент из нагрудного кармана.'),
-      line('/me {начал|начала} проверять замок спец. инструментом.'),
-      line('/try {обнаружил|обнаружила} повреждённый замок двери Т/С.'),
-      line('/do {Убрал|Убрала} спец. инструмент в нагрудный карман.')
-    ]
+    lines: [line('/do На груди закреплён жетон «Жетон МВД | «{позывной}» | «{подразделение}» | {жетон}».')]
   },
   {
     id: 'flat',
     name: 'Осмотреть квартиру на взлом',
-    hotkey: 'Alt+4',
+    hotkey: 'Alt+2',
     enterAfterEach: true,
     lines: [
       line('/do {Осмотрел|Осмотрела} дверь.'),
@@ -268,66 +272,37 @@ export const DEFAULT_BINDS: Bind[] = [
     ]
   },
   {
-    id: 'intro',
-    name: 'Представиться',
-    hotkey: 'Alt+5',
-    enterAfterEach: true,
-    lines: [
-      line('Здравствуйте! Росгвардия, {звание} {фамилия}.'),
-      line('/me {достал|достала} служебное удостоверение и {раскрыл|раскрыла} его перед собеседником'),
-      line('/do В удостоверении: {звание} {имя} {фамилия}, {подразделение} УФСВНГ.')
-    ]
-  },
-  {
-    id: 'mask-badge',
-    name: 'Жетон и позывной (в маске)',
-    hotkey: 'Alt+6',
-    enterAfterEach: true,
-    lines: [
-      line('/me {указал|указала} на специальный жетон на бронежилете'),
-      line('Росгвардия. Позывной «{позывной}», жетон № {жетон}.')
-    ]
-  },
-  {
     id: 'rights',
     name: 'Права задержанного',
-    hotkey: 'Alt+7',
+    hotkey: 'Alt+3',
     enterAfterEach: true,
+    // ст. 8 ПК — одним сообщением
     lines: [
-      line('Вы задержаны. Вы вправе не свидетельствовать против себя.'),
-      line('Вам положен государственный адвокат. Будете пользоваться этим правом?')
+      line(
+        'Вы задержаны. Ваши права по ст. 8 ПК: не свидетельствовать против себя; требовать государственного адвоката, если он на рабочем месте; ' +
+          'требовать присутствия адвоката в СИЗО, КПЗ и исправительном учреждении; конфиденциальная беседа с адвокатом до 5 минут; ' +
+          'один телефонный звонок любому лицу до 2 минут. Будете пользоваться правом на государственного адвоката?'
+      )
     ]
-  },
-  {
-    id: 'cuffs',
-    name: 'Наручники',
-    hotkey: 'Alt+8',
-    enterAfterEach: true,
-    lines: [
-      line('/me {снял|сняла} наручники с пояса и {застегнул|застегнула} их на запястьях задержанного'),
-      line('/do Наручники застёгнуты.')
-    ]
-  },
-  {
-    id: 'search',
-    name: 'Личный обыск',
-    hotkey: 'Alt+9',
-    enterAfterEach: true,
-    lines: [
-      line('/me {надел|надела} перчатки и {начал|начала} личный обыск задержанного'),
-      line('/me {проверил|проверила} карманы и пояс, {прощупал|прощупала} одежду'),
-      line('/do Обыск проведён.')
-    ]
-  },
-  {
-    id: 'articles',
-    name: 'Огласить статьи',
-    hotkey: 'Alt+0',
-    enterAfterEach: true,
-    // ст. 10 ПК: огласить перечень статей. Статьи берутся из калькулятора
-    lines: [line('Вы задерживаетесь по статьям: {статьи}.')]
   }
 ]
+
+/**
+ * Стандартные отыгровки версии 1 (0.2–0.3) — id и первая строка. Нетронутые
+ * заменяются новым набором, изменённые пользователем остаются как есть.
+ */
+export const DEFAULT_BINDS_V1: Record<string, string> = {
+  badge: '/do На бронежилете висит жетон «УФСВНГ | {подразделение} | {фамилия} | {жетон}».',
+  wanted: '/do КПК на поясе.',
+  car: '/do {Осмотрел|Осмотрела} транспортное средство.',
+  flat: '/do {Осмотрел|Осмотрела} дверь.',
+  intro: 'Здравствуйте! Росгвардия, {звание} {фамилия}.',
+  'mask-badge': '/me {указал|указала} на специальный жетон на бронежилете',
+  rights: 'Вы задержаны. Вы вправе не свидетельствовать против себя.',
+  cuffs: '/me {снял|сняла} наручники с пояса и {застегнул|застегнула} их на запястьях задержанного',
+  search: '/me {надел|надела} перчатки и {начал|начала} личный обыск задержанного',
+  articles: 'Вы задерживаетесь по статьям: {статьи}.'
+}
 
 export const DEFAULT_CHECKLISTS: Checklist[] = [
   {
@@ -430,10 +405,10 @@ export function defaultSettings(): Settings {
     profiles: [profile],
     activeProfileId: profile.id,
     binds: structuredClone(DEFAULT_BINDS),
-    hotkeys: { window: 'F1', panel: 'F3', interact: 'F4', stop: 'End' },
+    hotkeys: { window: 'F1', panel: 'F3', interact: 'F4', step: 'F6', stepBack: 'Shift+F6', stop: 'End' },
     // Паузы как в старом AHK — с ними сервер не кикает за флуд
     chat: { openKey: 'T', method: 'keys', openDelayMs: 200, lineDelayMs: 200, closeWithEnter: true },
-    ui: { accent: ACCENTS[0].color, scale: 100, alwaysOnTop: true, autostart: false, lawFontSize: 15 },
+    ui: { accent: ACCENTS[0].color, scale: 100, autostart: false, lawFontSize: 15 },
     overlay: { x: null, y: null, width: 400, maxHeight: 70, opacity: 94, scale: 100, tab: 'memos', checklistId: 'detention' },
     game: { processNames: ['GTA5.exe', 'GTA5_Enhanced.exe'], classNames: ['grcWindow'] },
     testMode: false,
@@ -442,7 +417,9 @@ export function defaultSettings(): Settings {
     bookmarks: [],
     checklists: structuredClone(DEFAULT_CHECKLISTS),
     checks: {},
-    calc: []
+    calc: [],
+    calcAlt: [],
+    bindsRev: BINDS_REV
   }
 }
 

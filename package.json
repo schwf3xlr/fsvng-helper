@@ -1,7 +1,7 @@
 {
   "name": "fsvng-helper",
   "productName": "ФСВНГ Helper",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "private": true,
   "description": "ФСВНГ Helper — отыгровки, памятки и законы поверх GTA V для УФСВНГ на RMRP",
   "author": "УФСВНГ по АФО",
@@ -50,9 +50,11 @@
     "files": [
       "out/**",
       "resources/icon.png",
+      "resources/icon.ico",
       "package.json"
     ],
     "asarUnpack": [
+      "resources/icon.ico",
       "**/node_modules/koffi/**",
       "**/node_modules/@koromix/**",
       "**/node_modules/uiohook-napi/**"

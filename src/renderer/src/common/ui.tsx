@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { lawSource, type LawId } from '../../../shared/laws'
+import emblemUrl from '../assets/emblem.svg'
 
 const PATHS = {
   shield: (
@@ -170,30 +171,9 @@ export function Icon({ name, size = 18, filled }: { name: IconName; size?: numbe
 }
 
 /** Эмблема приложения: краповый щит с золотой звездой (как на иконке) */
+/** Значок приложения — тот же рисунок, что у .exe и в трее (scripts/make-icon.cjs) */
 export function Emblem({ size = 34 }: { size?: number }) {
-  return (
-    <svg aria-hidden="true" width={size} height={size} viewBox="0 0 48 48" className="emblem">
-      <defs>
-        <linearGradient id="em-shield" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#C02A42" />
-          <stop offset="1" stopColor="#6A1020" />
-        </linearGradient>
-        <linearGradient id="em-gold" x1="0" y1="0" x2="0" y2="1">
-          <stop offset="0" stopColor="#F4DA92" />
-          <stop offset="1" stopColor="#C29236" />
-        </linearGradient>
-      </defs>
-      <path
-        d="M24 3.5l15 5.3v12c0 10-6.2 17.2-15 20.9C15.2 38 9 30.8 9 20.8v-12z"
-        fill="url(#em-shield)"
-        stroke="url(#em-gold)"
-        strokeWidth="2.4"
-        strokeLinejoin="round"
-      />
-      <path d="M24 10.5l2.6 5.6 6 .7-4.4 4.1 1.2 6-5.4-3.1-5.4 3.1 1.2-6-4.4-4.1 6-.7z" fill="url(#em-gold)" />
-      <path d="M15.5 25c1.5 5 4.5 8.4 8.5 10.4M32.5 25c-1.5 5-4.5 8.4-8.5 10.4" fill="none" stroke="url(#em-gold)" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  )
+  return <img src={emblemUrl} width={size} height={size} alt="" className="emblem" draggable={false} />
 }
 
 export function Kbd({ children, accent, className = '' }: { children: ReactNode; accent?: boolean; className?: string }) {

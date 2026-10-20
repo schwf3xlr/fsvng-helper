@@ -1,16 +1,22 @@
 // Окна приложения:
-//  - большое окно «ФСВНГ Helper» — настройка, памятки, законы;
-//  - оверлей на весь экран игры: уведомления отыгровок и компактная панель.
-//    Панель бывает видимой (клики идут в игру) и активной (мышь и клавиатура).
+//  - большое окно «ФСВНГ Helper» — обычное окно: настройка, памятки, законы. Поверх
+//    других не висит — уходит назад, когда переключаешься в игру или другую программу;
+//  - оверлей на весь экран игры: уведомления отыгровок и компактная панель. Только он
+//    всегда поверх. Панель бывает видимой (фокус и мышь у игры) и активной (мышь у панели).
 // Игра должна быть в режиме «Оконный без рамки»: поверх полноэкранного режима окна не видны.
 import { app, BrowserWindow, screen, type Rectangle } from 'electron'
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import type { PanelMode, WindowMode } from '../shared/api'
-import { forceForeground, forceTopmost, foregroundHwnd, hwndFromHandle, type Hwnd } from './win32'
+import { clearTopmost, forceForeground, forceTopmost, foregroundHwnd, hwndFromHandle, type Hwnd } from './win32'
 
 const preload = () => join(__dirname, '../preload/index.js')
-const icon = () => join(__dirname, '../../resources/icon.png')
+/**
+ * .ico с размерами 16–256: Windows сама берёт нужный для панели задач и трея.
+ * Читает его системный LoadImage, который не видит файлы внутри app.asar, —
+ * поэтому иконка лежит распакованной рядом (asarUnpack в package.json).
+ */
+export const appIcon = () => join(__dirname, '../../resources/icon.ico').replace(/app\.asar([\\/])/, 'app.asar.unpacked$1')
 
 function loadPage(win: BrowserWindow, page: 'index' | 'overlay'): void {
   const devUrl = process.env.ELECTRON_RENDERER_URL
@@ -62,7 +68,6 @@ export class MainWindow {
   mode: WindowMode = 'hidden'
   /** Окно игры, которому вернуть фокус, когда наше окно скрывается */
   private returnFocusTo: Hwnd | null = null
-  private alwaysOnTop = false
 
   constructor(private readonly onModeChange: (mode: WindowMode) => void) {
     const b = savedBounds()
@@ -79,7 +84,7 @@ export class MainWindow {
       show: false,
       backgroundColor: '#131113',
       title: 'ФСВНГ Helper',
-      icon: icon(),
+      icon: appIcon(),
       webPreferences: { preload: preload(), contextIsolation: true, nodeIntegration: false, sandbox: false }
     })
     if (b.maximized) this.win.maximize()
@@ -109,9 +114,7 @@ export class MainWindow {
     loadPage(this.win, 'index')
   }
 
-  configure(alwaysOnTop: boolean, scalePercent: number): void {
-    this.alwaysOnTop = alwaysOnTop
-    this.win.setAlwaysOnTop(alwaysOnTop, 'screen-saver')
+  configure(scalePercent: number): void {
     this.win.webContents.setZoomFactor(scalePercent / 100)
   }
 
@@ -132,13 +135,12 @@ export class MainWindow {
       const fg = foregroundHwnd()
       if (fg && fg != this.hwnd) this.returnFocusTo = fg
       if (win.isMinimized()) win.restore()
-      win.setAlwaysOnTop(this.alwaysOnTop, 'screen-saver')
       win.show()
-      // Поверх игры поднимаем всегда, даже если «всегда поверх» выключено
+      // Поднимаем над игрой и сразу снимаем «поверх»: дальше окно ведёт себя как обычное
       forceTopmost(this.hwnd)
-      if (!this.alwaysOnTop) win.setAlwaysOnTop(false)
       forceForeground(this.hwnd)
       win.focus()
+      clearTopmost(this.hwnd)
     } else {
       win.hide()
       if (wasFocused) this.restoreFocus()
@@ -153,9 +155,6 @@ export class MainWindow {
     if (this.returnFocusTo) forceForeground(this.returnFocusTo)
   }
 
-  keepOnTop(): void {
-    if (this.mode === 'active' && this.alwaysOnTop) forceTopmost(this.hwnd)
-  }
 }
 
 // ---------- Оверлей: уведомления и панель ----------

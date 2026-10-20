@@ -16,8 +16,10 @@ export function createMockApi(): AppApi {
   const docs = new Map<LawId, LawDoc>()
   const settings = defaultSettings()
   settings.onboarded = !params.has('onboarding')
-  settings.profiles[0] = { ...settings.profiles[0], name: 'Иван', surname: 'Петров', rank: 'Сержант полиции', unit: 'ОМОН', badge: '0417', callsign: 'Гром-7' }
-  settings.calc = ['uk:44:', 'koap:8.7:']
+  settings.profiles[0] = { ...settings.profiles[0], name: 'Иван', surname: 'Петров', rank: 'Старший прапорщик полиции', unit: 'СОБР', badge: '0417', callsign: 'Гром-7' }
+  // Пример из вопроса: ст. 89 — срок, ст. 91 — штраф вместо срока
+  settings.calc = ['uk:89:', 'uk:91:', 'koap:8.7:']
+  settings.calcAlt = ['uk:91:']
 
   const state: AppState = {
     settings,

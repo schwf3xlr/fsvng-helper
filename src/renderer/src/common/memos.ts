@@ -146,71 +146,119 @@ export function filterMemos(items: MemoItem[], query: string, law: LawId | 'all'
 }
 
 // ---------- Калькулятор наказания ----------
+//
+// Как считается (тексты законов RMRP):
+//  - ч. 1 ст. 13, ч. 2 ст. 30 УК — за каждое преступление отвечают по своей статье,
+//    сроки складываются, но не больше 15 лет;
+//  - ч. 2 ст. 13 ПК — срок можно заменить штрафом, если штраф есть в санкции этой статьи,
+//    на усмотрение сотрудника. Решается по каждой статье отдельно: за одну — срок,
+//    за другую — штраф;
+//  - ч. 4 ст. 30 УК — административный арест при лишении свободы заменяется одним годом;
+//  - ст. 4.6 КоАП — штраф и арест равнозначны, отказ платить штраф — арест.
 
 /** ч. 2 ст. 30 УК: сроки суммируются, но не больше 15 лет */
 export const MAX_PRISON_YEARS = 15
 
+/** Мера по статье: срок, штраф, административный арест */
+export type CalcMeasure = 'prison' | 'fine' | 'arrest'
+
+export interface CalcPick {
+  item: MemoItem
+  part: MemoPart
+  measure: CalcMeasure
+  /** Можно переключить на другую меру */
+  alternative: CalcMeasure | null
+}
+
 export interface CalcResult {
-  picks: { item: MemoItem; part: MemoPart }[]
+  picks: CalcPick[]
   prisonYears: number
   prisonCapped: boolean
-  /** Статьи УК, где вместо срока можно назначить штраф (ч. 2 ст. 13 ПК) */
-  ukFines: { label: string; fine: number }[]
+  /** Административный арест заменён годом лишения свободы (ч. 4 ст. 30 УК) */
+  arrestToPrison: boolean
+  /** Уголовные штрафы вместо срока */
+  ukFine: { min: number; max: number } | null
   koapFine: { min: number; max: number } | null
   koapArrestDays: number
   stars: number
-  /** «УК РФ: ст. 44, ст. 37 ч. 2; КоАП РФ: ст. 8.7» — для протокола */
+  /** «УК РФ ст. 44, ст. 37 ч. 2; КоАП РФ ст. 8.7» — все отмеченные статьи */
   articlesText: string
+  /** Статьи, по которым лишают свободы или арестовывают, — в личное дело */
+  jailText: string
+  /** Статьи со штрафом — в протокол о штрафе */
+  fineText: string
 }
 
 export function partLabel(item: MemoItem, part: MemoPart): string {
   return `ст. ${item.number}${part.part ? ` ч. ${part.part}` : ''}`
 }
 
-export function calculate(keys: string[], items: MemoItem[]): CalcResult {
-  const picks: CalcResult['picks'] = []
+/** Основная мера и запасная. УК — срок, если он есть; КоАП — штраф, если он есть */
+export function measuresOf(item: MemoItem, part: MemoPart): [CalcMeasure, CalcMeasure | null] {
+  const p = part.penalty
+  if (item.law === 'uk') {
+    if (p.prisonYears && p.fine) return ['prison', 'fine']
+    return [p.prisonYears ? 'prison' : 'fine', null]
+  }
+  if (p.fine && p.arrestDays) return ['fine', 'arrest']
+  return [p.arrestDays ? 'arrest' : 'fine', null]
+}
+
+export const MEASURE_LABEL: Record<CalcMeasure, string> = { prison: 'срок', fine: 'штраф', arrest: 'арест' }
+
+/** keys — отмеченные части, alt — где выбрана запасная мера */
+export function calculate(keys: string[], alt: string[], items: MemoItem[]): CalcResult {
+  const picks: CalcPick[] = []
   for (const key of keys) {
     for (const item of items) {
       const part = item.parts.find((p) => p.key === key)
-      if (part) picks.push({ item, part })
+      if (!part) continue
+      const [main, spare] = measuresOf(item, part)
+      const measure = spare && alt.includes(key) ? spare : main
+      picks.push({ item, part, measure, alternative: spare ? (measure === main ? spare : main) : null })
     }
   }
 
   let prison = 0
   let stars = 0
   let arrest = 0
-  let fineMin = 0
-  let fineMax = 0
-  let hasKoapFine = false
-  const ukFines: CalcResult['ukFines'] = []
+  const ukFine = { min: 0, max: 0, any: false }
+  const koapFine = { min: 0, max: 0, any: false }
 
-  for (const { item, part } of picks) {
+  for (const { item, part, measure } of picks) {
     const p = part.penalty
     stars = Math.max(stars, p.stars ?? 0)
-    if (item.law === 'uk') {
-      if (p.prisonYears) prison += p.prisonYears.max
-      if (p.fine) ukFines.push({ label: `УК ${partLabel(item, part)}`, fine: p.fine.max })
-    } else {
-      if (p.arrestDays) arrest += p.arrestDays.max
-      if (p.fine) {
-        hasKoapFine = true
-        fineMin += p.fine.min
-        fineMax += p.fine.max
-      }
+    if (measure === 'prison' && p.prisonYears) prison += p.prisonYears.max
+    if (measure === 'arrest' && p.arrestDays) arrest += p.arrestDays.max
+    if (measure === 'fine' && p.fine) {
+      const sum = item.law === 'uk' ? ukFine : koapFine
+      sum.any = true
+      sum.min += p.fine.min
+      sum.max += p.fine.max
     }
   }
 
-  const articlesText = formatCalcArticles(picks.map(({ part }) => part.key))
+  // ч. 4 ст. 30 УК: при лишении свободы арест по КоАП — это ещё один год
+  const arrestToPrison = prison > 0 && arrest > 0
+  if (arrestToPrison) {
+    prison += 1
+    arrest = 0
+  }
+
+  const keysWhere = (test: (m: CalcMeasure) => boolean) => picks.filter((p) => test(p.measure)).map((p) => p.part.key)
 
   return {
     picks,
     prisonYears: Math.min(prison, MAX_PRISON_YEARS),
     prisonCapped: prison > MAX_PRISON_YEARS,
-    ukFines,
-    koapFine: hasKoapFine ? { min: fineMin, max: fineMax } : null,
+    arrestToPrison,
+    ukFine: ukFine.any ? { min: ukFine.min, max: ukFine.max } : null,
+    koapFine: koapFine.any ? { min: koapFine.min, max: koapFine.max } : null,
     koapArrestDays: arrest,
     stars,
-    articlesText
+    articlesText: formatCalcArticles(picks.map((p) => p.part.key)),
+    jailText: formatCalcArticles(keysWhere((m) => m !== 'fine')),
+    fineText: formatCalcArticles(keysWhere((m) => m === 'fine'))
   }
 }
 

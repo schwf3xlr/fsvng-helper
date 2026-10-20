@@ -69,6 +69,7 @@ const KEYEVENTF_UNICODE = 0x0004
 const MAPVK_VK_TO_VSC = 0
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 const HWND_TOPMOST = -1
+const HWND_NOTOPMOST = -2
 const SWP_NOSIZE = 0x0001
 const SWP_NOMOVE = 0x0002
 const SWP_NOACTIVATE = 0x0010
@@ -221,6 +222,11 @@ export function hwndFromHandle(handle: Buffer): Hwnd {
 /** Поднять окно поверх всех, включая окно игры, не забирая фокус */
 export function forceTopmost(hwnd: Hwnd): void {
   SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
+}
+
+/** Снять «поверх всех», оставив окно наверху среди обычных */
+export function clearTopmost(hwnd: Hwnd): void {
+  SetWindowPos(hwnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE)
 }
 
 /**

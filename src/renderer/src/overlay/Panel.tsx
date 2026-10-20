@@ -2,9 +2,11 @@
 // панелью») — мышь и клавиатура у панели, Esc возвращает в игру.
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import { lawSource, type LawId } from '../../../shared/laws'
-import type { PanelTab } from '../../../shared/settings'
+import { isCheckable, type PanelTab } from '../../../shared/settings'
 import { ChecklistSteps, useChecklistToggle } from '../app/ChecklistsPage'
-import { buildMemos, calculate, filterMemos, formatYears, matchScore, partLabel, type MemoItem } from '../common/memos'
+import { CopyButton, MeasureSwitch } from '../common/calc'
+import { Select } from '../common/controls'
+import { buildMemos, calculate, filterMemos, formatFineRange, formatYears, matchScore, partLabel, type MemoItem } from '../common/memos'
 import { api, useSettings, useStore } from '../common/store'
 import { Emblem, Icon, Kbd, LawBadge, normalize, Stars, type IconName } from '../common/ui'
 
@@ -136,10 +138,21 @@ export function Panel() {
           </>
         ) : (
           <>
-            {settings.hotkeys.interact && (
+            {o.tab === 'checklist' && settings.hotkeys.step ? (
               <>
-                <Kbd>{settings.hotkeys.interact}</Kbd> управлять
+                <Kbd>{settings.hotkeys.step}</Kbd> шаг
+                {settings.hotkeys.stepBack && (
+                  <>
+                    <Kbd>{settings.hotkeys.stepBack}</Kbd> отмена
+                  </>
+                )}
               </>
+            ) : (
+              settings.hotkeys.interact && (
+                <>
+                  <Kbd>{settings.hotkeys.interact}</Kbd> управлять
+                </>
+              )
             )}
             <span className="grow" />
             {settings.hotkeys.panel && (
@@ -294,25 +307,20 @@ function ChecklistTab({ interactive }: { interactive: boolean }) {
   return (
     <>
       {interactive ? (
-        <select
-          className="input"
-          aria-label="Алгоритм"
+        <Select
+          label="Алгоритм"
+          className="compact"
           value={list.id}
-          onChange={(e) => patchSettings((s) => ({ ...s, overlay: { ...s.overlay, checklistId: e.target.value } }))}
-        >
-          {settings.checklists.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.title}
-            </option>
-          ))}
-        </select>
+          options={settings.checklists.map((c) => ({ value: c.id, label: c.title, hint: c.source }))}
+          onChange={(id) => patchSettings((s) => ({ ...s, overlay: { ...s.overlay, checklistId: id } }))}
+        />
       ) : (
         <span className="panel-section">
           {list.title}
           {list.source ? ` · ${list.source}` : ''}
         </span>
       )}
-      <ChecklistProgress listId={list.id} />
+      {isCheckable(list) && <ChecklistProgress listId={list.id} />}
       <ChecklistSteps list={list} />
     </>
   )
@@ -395,25 +403,57 @@ function ArticleView({ refTo, onBack, interactive }: { refTo: ArticleRef; onBack
 // ---------- Калькулятор ----------
 
 function CalcBar({ interactive }: { interactive: boolean }) {
-  const calc = useSettings().calc
+  const settings = useSettings()
   const clearCalc = useStore((s) => s.clearCalc)
   const memos = useMemos()
-  if (calc.length === 0) return null
-  const r = calculate(calc, memos)
-  const summary = [r.prisonYears ? formatYears(r.prisonYears) : '', r.koapArrestDays ? `арест ${r.koapArrestDays} сут.` : '', r.stars ? '★'.repeat(r.stars) : '']
+  if (settings.calc.length === 0) return null
+  const r = calculate(settings.calc, settings.calcAlt, memos)
+  const fine = r.ukFine && r.koapFine ? { min: r.ukFine.min + r.koapFine.min, max: r.ukFine.max + r.koapFine.max } : (r.ukFine ?? r.koapFine)
+  const summary = [
+    r.prisonYears ? formatYears(r.prisonYears) : '',
+    r.koapArrestDays ? `арест ${r.koapArrestDays} сут.` : '',
+    fine ? `штраф ${formatFineRange(fine)}` : '',
+    r.stars ? '★'.repeat(r.stars) : ''
+  ]
     .filter(Boolean)
     .join(' · ')
+  const short = (pick: (typeof r.picks)[number]) =>
+    `${pick.item.law === 'uk' ? 'УК' : 'КоАП'} ${partLabel(pick.item, pick.part).replace('ст. ', '')}${pick.measure === 'fine' && pick.item.law === 'uk' ? ' (штраф)' : ''}`
+  const jail = r.prisonYears > 0 || r.koapArrestDays > 0
+
   return (
-    <div className="p-calc">
-      <Icon name="calc" size={16} />
-      <div className="grow">
-        <b>{r.picks.map(({ item, part }) => `${item.law === 'uk' ? 'УК' : 'КоАП'} ${partLabel(item, part).replace('ст. ', '')}`).join(' + ')}</b>
-        {summary && <span className="hint">{summary}</span>}
+    <div className={`p-calc${interactive ? ' open' : ''}`}>
+      <div className="p-calc-head">
+        <Icon name="calc" size={16} />
+        <div className="grow">
+          <b>{r.picks.map(short).join(' + ')}</b>
+          {summary && <span className="hint">{summary}</span>}
+        </div>
+        {interactive && (
+          <button type="button" className="icon-btn" aria-label="Очистить калькулятор" title="Очистить" onClick={clearCalc}>
+            <Icon name="close" size={14} />
+          </button>
+        )}
       </div>
       {interactive && (
-        <button type="button" className="icon-btn" aria-label="Очистить калькулятор" title="Очистить" onClick={clearCalc}>
-          <Icon name="close" size={14} />
-        </button>
+        <>
+          {r.picks.some((p) => p.alternative) && (
+            <div className="p-calc-picks">
+              {r.picks
+                .filter((p) => p.alternative)
+                .map((pick) => (
+                  <div key={pick.part.key} className="p-calc-pick">
+                    <span className="grow">{short(pick).replace(' (штраф)', '')}</span>
+                    <MeasureSwitch pick={pick} />
+                  </div>
+                ))}
+            </div>
+          )}
+          <div className="p-calc-actions">
+            {jail && <CopyButton text={r.jailText} label="Статьи в личное дело" className="btn small primary" />}
+            {(r.ukFine || r.koapFine) && <CopyButton text={r.fineText} label={jail ? 'За штраф' : 'Статьи в протокол'} />}
+          </div>
+        </>
       )}
     </div>
   )

@@ -170,13 +170,18 @@ export function splitParts(article: LawArticle): ArticlePart[] {
   const groups: { part: string | null; paras: string[] }[] = []
   let current: { part: string | null; paras: string[] } = { part: null, paras: [] }
 
+  // Примечание бывает и между частями (ст. 63 УК: после ч. 2 идут ч. 3 и 4) —
+  // пропускаем его до следующей части, а не до конца статьи
+  let inNote = false
   for (const para of article.paragraphs) {
-    if (/^примечани/i.test(para)) break
     const m = partRe.exec(para)
     if (m) {
+      inNote = false
       if (current.paras.length || current.part) groups.push(current)
       current = { part: m[1], paras: [para.slice(m[0].length)] }
-    } else {
+    } else if (/^примечани/i.test(para)) {
+      inNote = true
+    } else if (!inNote) {
       current.paras.push(para)
     }
   }

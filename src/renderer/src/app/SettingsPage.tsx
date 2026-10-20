@@ -4,12 +4,16 @@ import {
   DEFAULT_BINDS,
   HOTKEY_ACTIONS,
   RANKS,
+  reservedKeyNote,
+  SCALE_MAX,
+  SCALE_MIN,
   UNITS,
   uid,
   type HotkeyAction,
   type Profile,
   type Settings
 } from '../../../shared/settings'
+import { Combo, Select, Slider } from '../common/controls'
 import { findOwner, HotkeyButton } from '../common/hotkey'
 import { api, useSettings, useStore } from '../common/store'
 import { Alert, formatDate, Icon, Segmented } from '../common/ui'
@@ -96,36 +100,6 @@ function Section({ title, icon, children }: { title: string; icon?: Parameters<t
   )
 }
 
-function Range({
-  label,
-  value,
-  min,
-  max,
-  step,
-  format,
-  onChange
-}: {
-  label: string
-  value: number
-  min: number
-  max: number
-  step: number
-  format: (v: number) => string
-  onChange: (v: number) => void
-}) {
-  return (
-    <label className="field">
-      <span className="row-between">
-        {label}
-        <span className="mono" style={{ color: 'var(--text)' }}>
-          {format(value)}
-        </span>
-      </span>
-      <input type="range" min={min} max={max} step={step} value={value} onChange={(e) => onChange(Number(e.target.value))} />
-    </label>
-  )
-}
-
 // ---------- Профиль ----------
 
 function ProfileSection({ draft, setDraft }: SectionProps) {
@@ -152,13 +126,13 @@ function ProfileSection({ draft, setDraft }: SectionProps) {
   return (
     <Section title="Профиль персонажа" icon="user">
       <div style={{ display: 'flex', gap: 8 }}>
-        <select className="input" style={{ flex: 1, fontWeight: 600 }} aria-label="Профиль" value={profile.id} onChange={(e) => setDraft((s) => ({ ...s, activeProfileId: e.target.value }))}>
-          {draft.profiles.map((p) => (
-            <option key={p.id} value={p.id}>
-              {label(p)}
-            </option>
-          ))}
-        </select>
+        <Select
+          label="Профиль"
+          style={{ flex: 1 }}
+          value={profile.id}
+          options={draft.profiles.map((p) => ({ value: p.id, label: label(p), hint: [p.rank, p.unit].filter(Boolean).join(' · ') }))}
+          onChange={(id) => setDraft((s) => ({ ...s, activeProfileId: id }))}
+        />
         <button type="button" className="btn small" style={{ height: 40 }} title="Добавить профиль" aria-label="Добавить профиль" onClick={addProfile}>
           <Icon name="plus" size={16} />
         </button>
@@ -187,14 +161,14 @@ export function ProfileFields({ profile, onChange }: { profile: Profile; onChang
           Фамилия
           <input value={profile.surname} onChange={(e) => onChange({ surname: e.target.value })} />
         </label>
-        <label className="field">
+        <div className="field" style={{ gridColumn: '1 / -1' }}>
           Звание
-          <input list="ranks" value={profile.rank} onChange={(e) => onChange({ rank: e.target.value })} />
-        </label>
-        <label className="field">
+          <Combo label="Звание" value={profile.rank} options={RANKS} onChange={(rank) => onChange({ rank })} />
+        </div>
+        <div className="field">
           Подразделение
-          <input list="units" value={profile.unit} onChange={(e) => onChange({ unit: e.target.value })} />
-        </label>
+          <Combo label="Подразделение" value={profile.unit} options={UNITS} onChange={(unit) => onChange({ unit })} />
+        </div>
         <label className="field">
           Номер жетона
           <input className="mono" value={profile.badge} onChange={(e) => onChange({ badge: e.target.value })} />
@@ -204,16 +178,6 @@ export function ProfileFields({ profile, onChange }: { profile: Profile; onChang
           <input value={profile.callsign} onChange={(e) => onChange({ callsign: e.target.value })} />
         </label>
       </div>
-      <datalist id="ranks">
-        {RANKS.map((r) => (
-          <option key={r} value={r} />
-        ))}
-      </datalist>
-      <datalist id="units">
-        {UNITS.map((u) => (
-          <option key={u} value={u} />
-        ))}
-      </datalist>
       <div className="field">
         Пол — для форм «снял / сняла»
         <Segmented
@@ -279,6 +243,16 @@ function HotkeysSection({ draft, setDraft }: SectionProps) {
           )
         })}
       </div>
+      {HOTKEY_ACTIONS.map((a) => {
+        const note = reservedKeyNote(draft.hotkeys[a.id])
+        return note ? (
+          <Alert key={a.id}>
+            <span>
+              «{a.label}» на {draft.hotkeys[a.id]}: {note}. Лучше выбрать другую клавишу.
+            </span>
+          </Alert>
+        ) : null
+      })}
       {conflict && conflictOwner && (
         <Alert>
           <span>
@@ -313,10 +287,10 @@ function PanelSection({ draft, setDraft }: SectionProps) {
         Компактная панель поверх GTA: избранные памятки, поиск статьи, алгоритм, отыгровки. Перетащить её можно за заголовок,
         когда она активна ({draft.hotkeys.interact ?? 'клавиша не назначена'}).
       </p>
-      <Range label="Ширина" value={o.width} min={320} max={560} step={10} format={(v) => `${v} px`} onChange={(width) => set({ width })} />
-      <Range label="Наибольшая высота" value={o.maxHeight} min={35} max={95} step={5} format={(v) => `${v}% экрана`} onChange={(maxHeight) => set({ maxHeight })} />
-      <Range label="Непрозрачность" value={o.opacity} min={55} max={100} step={5} format={(v) => `${v}%`} onChange={(opacity) => set({ opacity })} />
-      <Range label="Масштаб текста" value={o.scale} min={80} max={140} step={5} format={(v) => `${v}%`} onChange={(scale) => set({ scale })} />
+      <Slider label="Масштаб панели" value={o.scale} min={SCALE_MIN} max={SCALE_MAX} step={5} marks={[SCALE_MIN, 100, SCALE_MAX]} resetTo={100} format={(v) => `${v}%`} onChange={(scale) => set({ scale })} />
+      <Slider label="Ширина" value={o.width} min={320} max={560} step={10} resetTo={400} format={(v) => `${v} px`} onChange={(width) => set({ width })} />
+      <Slider label="Наибольшая высота" value={o.maxHeight} min={35} max={95} step={5} resetTo={70} format={(v) => `${v}%`} onChange={(maxHeight) => set({ maxHeight })} />
+      <Slider label="Непрозрачность фона" value={o.opacity} min={55} max={100} step={5} resetTo={94} format={(v) => `${v}%`} onChange={(opacity) => set({ opacity })} />
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
         <button type="button" className="btn small" onClick={() => api.panelAction(panel === 'hidden' ? 'passive' : 'hidden')}>
           <Icon name="panel" size={15} />
@@ -358,8 +332,8 @@ function ChatSection({ draft, setDraft }: SectionProps) {
             : 'Вставляет строку через Ctrl+V. Попробуйте, если в чате теряются буквы.'}
         </span>
       </div>
-      <Range label="Пауза между строками" value={chat.lineDelayMs} min={0} max={3000} step={100} format={(v) => `${(v / 1000).toFixed(1)} с`} onChange={(lineDelayMs) => set({ lineDelayMs })} />
-      <Range label="Пауза после открытия чата" value={chat.openDelayMs} min={100} max={1500} step={50} format={(v) => `${(v / 1000).toFixed(2)} с`} onChange={(openDelayMs) => set({ openDelayMs })} />
+      <Slider label="Пауза между строками" value={chat.lineDelayMs} min={0} max={3000} step={100} resetTo={200} format={(v) => `${(v / 1000).toFixed(1)} с`} onChange={(lineDelayMs) => set({ lineDelayMs })} />
+      <Slider label="Пауза после открытия чата" value={chat.openDelayMs} min={100} max={1500} step={50} resetTo={200} format={(v) => `${(v / 1000).toFixed(2)} с`} onChange={(openDelayMs) => set({ openDelayMs })} />
       <label className="check">
         <input type="checkbox" checked={chat.closeWithEnter} onChange={(e) => set({ closeWithEnter: e.target.checked })} />
         Закрывать чат Enter после отыгровки
@@ -402,22 +376,21 @@ function LookSection({ draft, setDraft }: SectionProps) {
           })}
         </div>
       </div>
-      <div className="setting-row" style={{ borderBottom: 0, minHeight: 40 }}>
-        <label className="label" htmlFor="scale">
-          Масштаб окна
-        </label>
-        <select id="scale" className="input" value={ui.scale} onChange={(e) => set({ scale: Number(e.target.value) })}>
-          {[90, 100, 110, 125, 150].map((v) => (
-            <option key={v} value={v}>
-              {v}%
-            </option>
-          ))}
-        </select>
-      </div>
-      <label className="check">
-        <input type="checkbox" checked={ui.alwaysOnTop} onChange={(e) => set({ alwaysOnTop: e.target.checked })} />
-        Окно приложения всегда поверх игры
-      </label>
+      <Slider
+        label="Масштаб окна"
+        value={ui.scale}
+        min={SCALE_MIN}
+        max={SCALE_MAX}
+        step={5}
+        marks={[SCALE_MIN, 100, SCALE_MAX]}
+        resetTo={100}
+        format={(v) => `${v}%`}
+        onChange={(scale) => set({ scale })}
+      />
+      <p className="hint" style={{ margin: 0 }}>
+        Окно приложения — обычное: уходит назад, когда переключаешься в игру или другую программу. Поверх игры остаётся только
+        панель.
+      </p>
     </Section>
   )
 }

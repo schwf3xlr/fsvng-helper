@@ -32,6 +32,8 @@ interface Store {
   /** Мелкие правки — уходят в main только изменённые разделы */
   patchSettings(fn: (s: Settings) => Settings): void
   toggleCalc(key: string): void
+  /** Другая мера по статье: штраф вместо срока, арест вместо штрафа */
+  toggleCalcAlt(key: string): void
   clearCalc(): void
 }
 
@@ -106,10 +108,17 @@ export const useStore = create<Store>((set, get) => ({
   },
 
   toggleCalc(key) {
-    get().patchSettings((s) => ({ ...s, calc: s.calc.includes(key) ? s.calc.filter((k) => k !== key) : [...s.calc, key] }))
+    get().patchSettings((s) =>
+      s.calc.includes(key)
+        ? { ...s, calc: s.calc.filter((k) => k !== key), calcAlt: s.calcAlt.filter((k) => k !== key) }
+        : { ...s, calc: [...s.calc, key] }
+    )
+  },
+  toggleCalcAlt(key) {
+    get().patchSettings((s) => ({ ...s, calcAlt: s.calcAlt.includes(key) ? s.calcAlt.filter((k) => k !== key) : [...s.calcAlt, key] }))
   },
   clearCalc() {
-    get().patchSettings((s) => ({ ...s, calc: [] }))
+    get().patchSettings((s) => ({ ...s, calc: [], calcAlt: [] }))
   }
 }))
 

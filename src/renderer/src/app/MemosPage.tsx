@@ -1,7 +1,16 @@
 import { Fragment, useMemo, useState } from 'react'
 import { LAW_SOURCES } from '../../../shared/laws'
-import { formatMoney } from '../../../shared/penalty'
-import { buildMemos, calculate, filterMemos, formatFineRange, formatYears, partLabel, type MemoItem } from '../common/memos'
+import { CopyButton, MeasureSwitch } from '../common/calc'
+import { Masonry } from '../common/Masonry'
+import {
+  buildMemos,
+  calculate,
+  filterMemos,
+  formatFineRange,
+  formatYears,
+  partLabel,
+  type MemoItem
+} from '../common/memos'
 import { api, useSettings, useStore, type MemoFilter } from '../common/store'
 import { Icon, LawBadge, plural, Stars } from '../common/ui'
 import { TitleBar } from './App'
@@ -110,20 +119,12 @@ export function MemosPage() {
                   <h2 className="caps section-title">
                     {src.title} · {items.length}
                   </h2>
-                  <div className="memo-grid">
-                    {items.map((item) => (
-                      <MemoCard key={item.key} item={item} />
-                    ))}
-                  </div>
+                  <Masonry items={items} keyOf={memoKey} render={renderMemo} />
                 </Fragment>
               )
             })
           ) : (
-            <div className="memo-grid">
-              {list.slice(0, limit).map((item) => (
-                <MemoCard key={item.key} item={item} />
-              ))}
-            </div>
+            <Masonry items={list.slice(0, limit)} keyOf={memoKey} render={renderMemo} />
           )}
           {!grouped && list.length > limit && (
             <button type="button" className="btn" style={{ marginTop: 14 }} onClick={() => setLimit((l) => l + PAGE)}>
@@ -136,6 +137,9 @@ export function MemosPage() {
     </div>
   )
 }
+
+const memoKey = (item: MemoItem) => item.key
+const renderMemo = (item: MemoItem) => <MemoCard item={item} />
 
 export function MemoCard({ item }: { item: MemoItem }) {
   const settings = useSettings()
@@ -218,9 +222,10 @@ function CalcPanel({ memos }: { memos: MemoItem[] }) {
   const settings = useSettings()
   const toggleCalc = useStore((s) => s.toggleCalc)
   const clearCalc = useStore((s) => s.clearCalc)
-  const r = calculate(settings.calc, memos)
-  const [copied, setCopied] = useState(false)
+  const r = calculate(settings.calc, settings.calcAlt, memos)
   const articlesBind = settings.binds.find((b) => /\{статьи\}/i.test(b.lines.map((l) => l.text).join(' ')))
+  const hasFine = !!(r.ukFine || r.koapFine)
+  const hasJail = r.prisonYears > 0 || r.koapArrestDays > 0
 
   return (
     <aside className="calc-panel" aria-label="Калькулятор наказания">
@@ -232,13 +237,14 @@ function CalcPanel({ memos }: { memos: MemoItem[] }) {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 5 }}>
-        {r.picks.map(({ item, part }) => (
-          <div key={part.key} className="calc-pick">
-            <LawBadge law={item.law} />
-            <span className="grow" title={item.title}>
-              {partLabel(item, part)} · {item.title}
+        {r.picks.map((pick) => (
+          <div key={pick.part.key} className="calc-pick">
+            <LawBadge law={pick.item.law} />
+            <span className="grow" title={pick.item.title}>
+              {partLabel(pick.item, pick.part)} · {pick.item.title}
             </span>
-            <button type="button" className="icon-btn" aria-label="Убрать" onClick={() => toggleCalc(part.key)}>
+            <MeasureSwitch pick={pick} />
+            <button type="button" className="icon-btn" aria-label="Убрать" onClick={() => toggleCalc(pick.part.key)}>
               <Icon name="close" size={14} />
             </button>
           </div>
@@ -249,33 +255,35 @@ function CalcPanel({ memos }: { memos: MemoItem[] }) {
         <div className="total">
           <span className="hint">Лишение свободы</span>
           <span className="value">{formatYears(r.prisonYears)}</span>
-          <span className="note">Сроки складываются, но не больше 15 лет (ч. 2 ст. 30 УК){r.prisonCapped ? ' — упёрлись в предел' : ''}.</span>
+          <span className="note">
+            Сроки по каждой статье складываются, но не больше 15 лет (ч. 2 ст. 30 УК){r.prisonCapped ? ' — упёрлись в предел' : ''}.
+            {r.arrestToPrison && ' Арест по КоАП заменён одним годом (ч. 4 ст. 30 УК).'}
+          </span>
         </div>
       )}
-      {r.ukFines.length > 0 && (
+      {r.ukFine && (
         <div className="total">
-          <span className="hint">Вместо срока можно штраф (ч. 2 ст. 13 ПК)</span>
-          {r.ukFines.map((f) => (
-            <span key={f.label} style={{ fontSize: 13.5 }}>
-              {f.label} — {formatMoney(f.fine)}
-            </span>
-          ))}
+          <span className="hint">Уголовный штраф вместо срока</span>
+          <span className="value">{formatFineRange(r.ukFine)}</span>
+          <span className="note">
+            Решается по каждой статье отдельно, на усмотрение сотрудника (ч. 2 ст. 13 ПК). Отказ платить — срок по этой же статье
+            (ч. 7 ст. 4 ПК).
+          </span>
         </div>
       )}
       {r.koapFine && (
         <div className="total">
           <span className="hint">Штрафы КоАП</span>
           <span className="value">{formatFineRange(r.koapFine)}</span>
-          <span className="note">Одну статью дважды подряд не штрафуют (ст. 4.5 КоАП).</span>
+          <span className="note">Одну статью дважды подряд не штрафуют (ст. 4.5 КоАП). Отказ платить — арест, если он есть в статье (ст. 4.6).</span>
         </div>
       )}
       {r.koapArrestDays > 0 && (
         <div className="total">
-          <span className="hint">Или административный арест</span>
+          <span className="hint">Административный арест</span>
           <span className="value">
             {r.koapArrestDays} {plural(r.koapArrestDays, 'сутки', 'суток', 'суток')}
           </span>
-          <span className="note">Штраф и арест равнозначны; отказ платить — арест (ст. 4.6 КоАП).</span>
         </div>
       )}
       {r.stars > 0 && (
@@ -287,27 +295,25 @@ function CalcPanel({ memos }: { memos: MemoItem[] }) {
         </div>
       )}
 
-      <div className="total">
-        <span className="hint">Для протокола</span>
-        <span style={{ fontSize: 13.5, fontWeight: 600 }}>{r.articlesText}</span>
-        <button
-          type="button"
-          className="btn small"
-          style={{ marginTop: 8 }}
-          onClick={() => {
-            api.copyText(r.articlesText)
-            setCopied(true)
-          }}
-        >
-          <Icon name="copy" size={15} />
-          {copied ? 'Скопировано' : 'Копировать'}
-        </button>
-      </div>
+      {hasJail && (
+        <div className="total">
+          <span className="hint">В личное дело — за что лишают свободы</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>{r.jailText}</span>
+          <CopyButton text={r.jailText} label="Копировать" className="btn small primary" />
+        </div>
+      )}
+      {hasFine && (
+        <div className="total">
+          <span className="hint">В протокол — за что штраф</span>
+          <span style={{ fontSize: 13.5, fontWeight: 600 }}>{r.fineText}</span>
+          <CopyButton text={r.fineText} label="Копировать" />
+        </div>
+      )}
 
       <p className="hint" style={{ margin: 0 }}>
         {articlesBind
-          ? `Отыгровка «${articlesBind.name}»${articlesBind.hotkey ? ` (${articlesBind.hotkey})` : ''} огласит эти статьи в чат.`
-          : 'Переменная {статьи} в отыгровке подставит эти статьи в чат.'}{' '}
+          ? `Отыгровка «${articlesBind.name}»${articlesBind.hotkey ? ` (${articlesBind.hotkey})` : ''} огласит все статьи в чат.`
+          : 'Переменная {статьи} в отыгровке подставит все отмеченные статьи в чат.'}{' '}
         Итог ориентировочный — решение за сотрудником.
       </p>
     </aside>

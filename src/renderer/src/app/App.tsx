@@ -1,6 +1,6 @@
 import { useEffect, type ReactNode } from 'react'
 import type { TabId } from '../../../shared/api'
-import { activeProfile } from '../../../shared/settings'
+import { activeProfile, HOTKEY_ACTIONS, reservedKeyNote } from '../../../shared/settings'
 import { api, useStore } from '../common/store'
 import { Alert, Emblem, Icon, Kbd, type IconName } from '../common/ui'
 import { BindsPage } from './BindsPage'
@@ -105,7 +105,12 @@ function Sidebar() {
         <span className="avatar">{initials}</span>
         <span className="who">
           <b>{fullName || 'Заполните профиль'}</b>
-          <span>{[p.rank, p.unit, p.badge && `№${p.badge}`].filter(Boolean).join(' · ')}</span>
+          {p.rank && <span>{p.rank}</span>}
+          {(p.unit || p.badge || p.callsign) && (
+            <span className="who-meta">
+              {[p.unit, p.badge && `жетон ${p.badge}`, p.callsign && `«${p.callsign}»`].filter(Boolean).join(' · ')}
+            </span>
+          )}
         </span>
       </button>
 
@@ -171,8 +176,12 @@ function Banners() {
   const errors = useStore((s) => s.app!.settingsErrors)
   const testMode = useStore((s) => s.app!.settings.testMode)
   const elevated = useStore((s) => s.app!.elevated)
+  const hotkeys = useStore((s) => s.app!.settings.hotkeys)
   const patchSettings = useStore((s) => s.patchSettings)
-  if (!game.fullscreenSeen && errors.length === 0 && !testMode && elevated) return null
+  const setTab = useStore((s) => s.setTab)
+  // Клавиша, на которую реагирует и сама игра (Home — оверлей Rockstar с курсором)
+  const reserved = HOTKEY_ACTIONS.map((a) => ({ a, note: reservedKeyNote(hotkeys[a.id]) })).find((r) => r.note)
+  if (!game.fullscreenSeen && errors.length === 0 && !testMode && elevated && !reserved) return null
   return (
     <div className="banners">
       {game.fullscreenSeen && (
@@ -195,6 +204,16 @@ function Banners() {
       {errors.map((e) => (
         <Alert key={e}>{e}</Alert>
       ))}
+      {reserved && (
+        <Alert>
+          <span>
+            «{reserved.a.label}» на {hotkeys[reserved.a.id]}: {reserved.note}. Поставьте другую клавишу.
+          </span>
+          <button type="button" className="btn small" onClick={() => setTab('settings')}>
+            Сменить
+          </button>
+        </Alert>
+      )}
       {testMode && (
         <Alert>
           <span>Включён тестовый режим: отыгровки печатаются в любое активное окно.</span>

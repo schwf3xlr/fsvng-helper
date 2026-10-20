@@ -1,8 +1,16 @@
-import { app, clipboard, ipcMain, Menu, nativeImage, Notification, shell, Tray } from 'electron'
+import { app, clipboard, ipcMain, Menu, Notification, shell, Tray } from 'electron'
 import { join } from 'node:path'
 import { IPC, type AppState, type GameStatus, type PanelMode, type Toast, type WindowMode } from '../shared/api'
 import type { LawId } from '../shared/laws'
-import { activeProfile, renderLine, usesArticles, type Bind, type Settings } from '../shared/settings'
+import {
+  activeProfile,
+  HOTKEY_ACTIONS,
+  isCheckable,
+  renderLine,
+  usesArticles,
+  type Bind,
+  type Settings
+} from '../shared/settings'
 import { BindCancelled, BindRunner } from './binds'
 import { relaunchElevated, syncTasks } from './elevation'
 import { HotkeyManager, hotkeyId, parseHotkey, type Binding } from './hotkeys'
@@ -11,7 +19,7 @@ import { exportPack, importPack } from './pack'
 import { loadSettings, normalizeSettings, writeSettings } from './settings'
 import { Updater } from './updater'
 import { getForeground, isD3DFullscreen, isElevated, windowRect, type ForegroundWindow } from './win32'
-import { MainWindow, markQuitting, OverlayWindow } from './windows'
+import { appIcon, MainWindow, markQuitting, OverlayWindow } from './windows'
 
 let settings: Settings
 let settingsErrors: string[] = []
@@ -97,7 +105,6 @@ function pollGame(): void {
     const rect = windowRect(fg.hwnd)
     if (rect) overlay.followGame(rect)
     overlay.raise()
-    mainWin.keepOnTop()
   }
   if (fullscreen && !fullscreenNotified) {
     fullscreenNotified = true
@@ -222,6 +229,35 @@ function toggleInteract(): void {
   else if (hotkeysAllowed()) setPanel('interactive')
 }
 
+/** Шаг алгоритма в панели клавишей — без курсора и без выхода из игры */
+function stepChecklist(forward: boolean): void {
+  if (!hotkeysAllowed()) return
+  const list = settings.checklists.find((c) => c.id === settings.overlay.checklistId) ?? settings.checklists[0]
+  if (!list) return
+  if (!isCheckable(list)) {
+    toast({ id: 'step', kind: 'warn', title: list.title, text: 'Этот алгоритм без галочек — включите их в редакторе.', ttl: 3500 })
+    return
+  }
+  const done = settings.checks[list.id] ?? []
+  let next: number[]
+  if (forward) {
+    const i = list.steps.findIndex((_, n) => !done.includes(n))
+    if (i < 0) {
+      toast({ id: 'step', kind: 'ok', title: list.title, text: 'Все шаги уже отмечены', ttl: 2500 })
+      return
+    }
+    next = [...done, i]
+  } else {
+    if (done.length === 0) return
+    next = done.slice(0, -1)
+  }
+  patchSettings({
+    checks: { ...settings.checks, [list.id]: next },
+    overlay: { ...settings.overlay, tab: 'checklist', checklistId: list.id }
+  })
+  if (overlay.panel === 'hidden') setPanel('passive')
+}
+
 // ---------- Настройки ----------
 
 /** Ошибки разбора и повторы клавиш */
@@ -239,10 +275,7 @@ function validateHotkeys(s: Settings): string[] {
       errors.push(`${owner}: ${(e as Error).message}`)
     }
   }
-  check(s.hotkeys.window, 'Окно приложения')
-  check(s.hotkeys.panel, 'Панель в игре')
-  check(s.hotkeys.interact, 'Управлять панелью')
-  check(s.hotkeys.stop, 'Остановить отыгровку')
+  for (const a of HOTKEY_ACTIONS) check(s.hotkeys[a.id], a.label)
   for (const b of s.binds) check(b.hotkey, b.name)
   return errors
 }
@@ -262,6 +295,8 @@ function applySettings(): void {
   add(settings.hotkeys.window, toggleWindow)
   add(settings.hotkeys.panel, togglePanel)
   add(settings.hotkeys.interact, toggleInteract)
+  add(settings.hotkeys.step, () => stepChecklist(true))
+  add(settings.hotkeys.stepBack, () => stepChecklist(false))
   add(settings.hotkeys.stop, () => runner.cancel(), true)
   for (const bind of settings.binds) {
     add(bind.hotkey, () => {
@@ -272,7 +307,7 @@ function applySettings(): void {
   }
   hotkeys.set(bindings)
 
-  mainWin.configure(settings.ui.alwaysOnTop, settings.ui.scale)
+  mainWin.configure(settings.ui.scale)
   // Задачи планировщика трогаем, только когда меняется автозапуск: schtasks медленный
   if (appliedAutostart !== settings.ui.autostart) {
     appliedAutostart = settings.ui.autostart
@@ -310,10 +345,6 @@ function patchSettings(patch: Partial<Settings>): void {
 }
 
 // ---------- Трей ----------
-
-function trayIcon(): Electron.NativeImage {
-  return nativeImage.createFromPath(join(__dirname, '../../resources/icon.png')).resize({ width: 16, height: 16 })
-}
 
 function updateTray(): void {
   if (!tray) return
@@ -418,7 +449,8 @@ if (relaunchElevated()) {
 
     overlay = new OverlayWindow((panel) => pushState({ panel }))
     mainWin = new MainWindow((mode) => pushState({ mode }))
-    tray = new Tray(trayIcon())
+    // Путь к .ico, а не картинка: Windows берёт готовый размер под масштаб экрана
+    tray = new Tray(appIcon())
     tray.on('click', () => setMode('active'))
 
     applySettings()

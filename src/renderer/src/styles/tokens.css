@@ -338,10 +338,231 @@ input[type='checkbox'] {
   flex-shrink: 0;
   accent-color: var(--accent);
 }
+/* ---------- Ползунок ---------- */
+
 input[type='range'] {
+  --fill: 50%;
+  -webkit-appearance: none;
+  appearance: none;
   width: 100%;
+  height: 22px;
   margin: 0;
-  accent-color: var(--accent);
+  background: transparent;
+  cursor: pointer;
+}
+input[type='range']::-webkit-slider-runnable-track {
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(to right, var(--accent) var(--fill), var(--line-2) var(--fill));
+}
+input[type='range']::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: -6px;
+  border-radius: 50%;
+  background: var(--text);
+  border: 4px solid var(--accent);
+  box-shadow:
+    0 0 0 4px var(--accent-soft),
+    0 2px 6px rgba(0, 0, 0, 0.5);
+  transition: transform 0.12s;
+}
+input[type='range']:hover::-webkit-slider-thumb,
+input[type='range']:focus-visible::-webkit-slider-thumb {
+  transform: scale(1.15);
+}
+input[type='range']:focus {
+  outline: none;
+}
+
+.slider {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted-2);
+}
+.slider-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.slider-value {
+  min-width: 54px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--accent-soft);
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-align: center;
+}
+.slider-marks {
+  position: relative;
+  height: 16px;
+  margin: -2px 9px 0;
+}
+.slider-marks button {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.slider-marks button:hover,
+.slider-marks button.on {
+  color: var(--text);
+}
+
+/* ---------- Мера наказания в калькуляторе ---------- */
+
+.measure {
+  display: inline-flex;
+  flex-shrink: 0;
+  padding: 2px;
+  gap: 2px;
+  border-radius: 7px;
+  background: var(--inset);
+  border: 1px solid var(--line-2);
+}
+.measure button {
+  height: 22px;
+  padding: 0 7px;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.measure button[aria-pressed='true'] {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.measure-fixed {
+  flex-shrink: 0;
+  color: var(--faint);
+  font-size: 11.5px;
+}
+.steps .step-num {
+  flex-shrink: 0;
+  min-width: 18px;
+  color: var(--accent-text);
+  font-family: var(--font-mono);
+  font-weight: 600;
+}
+
+/* ---------- Выпадающий список ---------- */
+
+.select {
+  position: relative;
+  min-width: 0;
+}
+.select-button,
+.combo input {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px 0 11px;
+  background: var(--inset);
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 14px;
+  text-align: left;
+}
+.select-button > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.select-button svg,
+.combo-toggle svg {
+  flex-shrink: 0;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.select-button:hover,
+.combo input:hover {
+  border-color: var(--line-3);
+}
+.select-button:focus-visible,
+.select-button.open,
+.combo input:focus {
+  outline: none;
+  border-color: var(--accent-line);
+}
+.select-button.open svg {
+  transform: rotate(180deg);
+}
+.combo input {
+  padding-right: 36px;
+}
+.combo-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 36px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  background: transparent;
+}
+.dropdown {
+  position: fixed;
+  z-index: 1000;
+  overflow-y: auto;
+  margin: 0;
+  padding: 5px;
+  list-style: none;
+  background: var(--card-raised);
+  border: 1px solid var(--line-3);
+  border-radius: 10px;
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
+  animation: dropdown-in 0.12s ease-out;
+}
+@keyframes dropdown-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+.dropdown li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 34px;
+  padding: 6px 9px;
+  border-radius: 7px;
+  color: var(--text-2);
+  font-size: 13.5px;
+  cursor: pointer;
+}
+.dropdown li small {
+  display: block;
+  color: var(--faint);
+  font-size: 11.5px;
+}
+.dropdown li.active {
+  background: var(--accent-soft);
+  color: var(--text);
+}
+.dropdown li[aria-selected='true'] {
+  color: var(--text);
+  font-weight: 600;
+}
+.dropdown li svg {
+  color: var(--accent-text);
 }
 
 .segmented {
@@ -543,6 +764,15 @@ input[type='range'] {
 }
 .steps input {
   margin-top: 1px;
+}
+/* Алгоритм без галочек — нумерованный список */
+.steps.plain li {
+  display: flex;
+  gap: 10px;
+  padding: 7px 8px;
+  font-size: 14px;
+  line-height: 1.4;
+  color: var(--text-2);
 }
 
 /* ---------- Карточки памяток (общие для окна и панели) ---------- */

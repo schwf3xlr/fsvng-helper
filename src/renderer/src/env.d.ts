@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import type { AppApi, OverlayApi } from '../../shared/api'
 
 declare global {
