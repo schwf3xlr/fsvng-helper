@@ -7,6 +7,7 @@ import {
   DEFAULT_BINDS,
   DEFAULT_BINDS_V1,
   DEFAULT_CHECKLISTS,
+  DEFAULT_CHECKLISTS_V1,
   defaultSettings,
   SCALE_MAX,
   SCALE_MIN,
@@ -47,6 +48,28 @@ function migrateBinds(binds: Bind[], hotkeys: Settings['hotkeys']): Bind[] {
     out.push({ ...structuredClone(next), hotkey })
   }
   return out
+}
+
+/**
+ * Стандартные «Задержание» и «Арест» → один «Задержание и Арест». Трогаем только
+ * нетронутые: изменённые пользователем алгоритмы остаются как есть.
+ */
+function mergeDetentionAndArrest(s: Settings): Settings {
+  const untouched = (id: 'detention' | 'arrest') =>
+    s.checklists.find((c) => c.id === id && JSON.stringify(c.steps) === JSON.stringify(DEFAULT_CHECKLISTS_V1[id]))
+  const detention = untouched('detention')
+  const arrest = untouched('arrest')
+  if (!detention) return s
+  const merged = structuredClone(DEFAULT_CHECKLISTS.find((c) => c.id === 'detention')!)
+  const checklists = s.checklists
+    .filter((c) => c !== arrest)
+    .map((c) => (c === detention ? merged : c))
+  // Номера шагов поменялись — старые отметки больше не подходят
+  const checks = { ...s.checks }
+  delete checks.detention
+  if (arrest) delete checks.arrest
+  const checklistId = arrest && s.overlay.checklistId === 'arrest' ? 'detention' : s.overlay.checklistId
+  return { ...s, checklists, checks, overlay: { ...s.overlay, checklistId } }
 }
 
 /** Достраивает настройки из файла значениями по умолчанию (новые поля в новых версиях) */
@@ -106,6 +129,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   if (raw.checklists && rev < 4 && !s.checklists.some((c) => c.id === 'license')) {
     s.checklists = [...s.checklists, structuredClone(DEFAULT_CHECKLISTS.find((c) => c.id === 'license')!)]
   }
+  if (raw.checklists && rev < 5) Object.assign(s, mergeDetentionAndArrest(s))
   if (!['all', 'important', 'off'].includes(s.overlay.toasts)) s.overlay.toasts = 'all'
   delete (s as Partial<Settings> & { bindsRev?: number }).bindsRev
   s.rev = SETTINGS_REV
