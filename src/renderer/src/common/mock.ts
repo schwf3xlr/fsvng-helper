@@ -35,6 +35,7 @@ export function createMockApi(): AppApi {
     update: { state: 'unsupported' },
     version: 'demo',
     elevated: true,
+    launchNote: null,
     settingsErrors: []
   }
   const emit = (patch: Partial<AppState>) => {

@@ -473,6 +473,7 @@ function LookSection({ draft, setDraft }: SectionProps) {
 
 function LaunchSection({ draft, setDraft }: SectionProps) {
   const elevated = useStore((s) => s.app!.elevated)
+  const launchNote = useStore((s) => s.app!.launchNote)
   return (
     <Section title="Запуск и права" icon="admin">
       <div className="setting-row" style={{ minHeight: 40 }}>
@@ -495,9 +496,19 @@ function LaunchSection({ draft, setDraft }: SectionProps) {
         <input type="checkbox" checked={draft.ui.autostart} onChange={(e) => setDraft((s) => ({ ...s, ui: { ...s.ui, autostart: e.target.checked } }))} />
         Запускать вместе с Windows — в трее, с правами администратора
       </label>
-      <p className="hint" style={{ margin: 0 }}>
-        Права приложение просит само. Окно Windows с вопросом появится один раз — дальше запуск идёт без него.
-      </p>
+      {launchNote ? (
+        <Alert>
+          <span>
+            Windows будет спрашивать права при каждом запуске: папку программы могут изменить без прав администратора
+            ({launchNote}). Переустановите программу в Program Files или в папку прямо в корне диска, например
+            D:\fsvng-helper.
+          </span>
+        </Alert>
+      ) : (
+        <p className="hint" style={{ margin: 0 }}>
+          Права приложение просит само. Окно Windows с вопросом появится один раз — дальше запуск идёт без него.
+        </p>
+      )}
     </Section>
   )
 }

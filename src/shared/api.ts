@@ -52,6 +52,8 @@ export interface AppState {
   version: string
   /** Приложение запущено с правами администратора */
   elevated: boolean
+  /** Почему Windows будет спрашивать права при каждом запуске; null — не будет */
+  launchNote: string | null
   settingsErrors: string[]
 }
 

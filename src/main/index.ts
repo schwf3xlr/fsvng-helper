@@ -60,6 +60,7 @@ function fullState(): AppState {
     update: updater.status,
     version: app.getVersion(),
     elevated,
+    launchNote,
     settingsErrors
   }
 }
@@ -321,6 +322,7 @@ function validateHotkeys(s: Settings): string[] {
 }
 
 let appliedAutostart: boolean | null = null
+let launchNote: string | null = null
 
 function applySettings(): void {
   const bindings: Binding[] = []
@@ -351,11 +353,13 @@ function applySettings(): void {
   // Задачи планировщика трогаем, только когда меняется автозапуск: schtasks медленный
   if (appliedAutostart !== settings.ui.autostart) {
     appliedAutostart = settings.ui.autostart
-    try {
-      syncTasks(settings.ui.autostart)
-    } catch (e) {
-      console.log('[fsvng-helper] автозапуск не настроен:', (e as Error).message)
-    }
+    // В фоне: проверка папки программы и schtasks занимают секунду-две
+    syncTasks(settings.ui.autostart, log)
+      .then((note) => {
+        launchNote = note
+        pushState({ launchNote })
+      })
+      .catch((e) => log(`автозапуск не настроен: ${(e as Error).message}`))
   }
   updateTray()
 }
