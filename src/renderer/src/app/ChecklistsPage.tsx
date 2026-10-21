@@ -124,7 +124,7 @@ function ChecklistCard({ list, inPanel, onEdit }: { list: Checklist; inPanel: bo
           <h2 style={{ margin: 0, fontSize: 18, fontWeight: 600 }}>{list.title}</h2>
         </div>
         {checkable && (
-          <span className="kbd" style={{ height: 26, fontFamily: 'var(--font)', fontSize: 12, fontWeight: 500 }}>
+          <span className={`pill${done === list.steps.length ? ' done' : ''}`}>
             {done === list.steps.length ? 'Готово' : `Шаг ${next + 1} из ${list.steps.length}`}
           </span>
         )}

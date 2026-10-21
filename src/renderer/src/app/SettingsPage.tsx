@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import {
   ACCENTS,
   DEFAULT_BINDS,
@@ -7,6 +7,8 @@ import {
   reservedKeyNote,
   SCALE_MAX,
   SCALE_MIN,
+  TOAST_PRESETS,
+  toastAnchor,
   UNITS,
   uid,
   type HotkeyAction,
@@ -36,7 +38,27 @@ export function SettingsPage() {
   }, [saved, base, draft])
 
   const save = async () => {
-    const errs = await saveSettings(draft)
+    // Сохраняем только то, что правится здесь: панель, калькулятор, избранное и места
+    // на экране меняются в других окнах — их не откатываем старой копией
+    const next: Settings = {
+      ...saved,
+      profiles: draft.profiles,
+      activeProfileId: draft.activeProfileId,
+      hotkeys: draft.hotkeys,
+      chat: draft.chat,
+      ui: draft.ui,
+      game: draft.game,
+      testMode: draft.testMode,
+      binds: JSON.stringify(draft.binds) !== JSON.stringify(base.binds) ? draft.binds : saved.binds,
+      overlay: {
+        ...saved.overlay,
+        width: draft.overlay.width,
+        maxHeight: draft.overlay.maxHeight,
+        opacity: draft.overlay.opacity,
+        scale: draft.overlay.scale
+      }
+    }
+    const errs = await saveSettings(next)
     setErrors(errs)
     if (errs.length === 0) {
       setSavedFlash(true)
@@ -52,6 +74,7 @@ export function SettingsPage() {
           <ProfileSection draft={draft} setDraft={setDraft} />
           <HotkeysSection draft={draft} setDraft={setDraft} />
           <PanelSection draft={draft} setDraft={setDraft} />
+          <ToastSection />
           <ChatSection draft={draft} setDraft={setDraft} />
           <LookSection draft={draft} setDraft={setDraft} />
           <LaunchSection draft={draft} setDraft={setDraft} />
@@ -296,9 +319,49 @@ function PanelSection({ draft, setDraft }: SectionProps) {
           <Icon name="panel" size={15} />
           {panel === 'hidden' ? 'Показать панель' : 'Скрыть панель'}
         </button>
-        <button type="button" className="btn small ghost" disabled={o.x === null && o.y === null} onClick={() => set({ x: null, y: null })}>
-          Вернуть на место
+        <button type="button" className="btn small" onClick={() => api.panelAction('layout')}>
+          <Icon name="cursor" size={15} />
+          Расставить на экране
         </button>
+      </div>
+    </Section>
+  )
+}
+
+// ---------- Уведомления ----------
+
+function ToastSection() {
+  const o = useSettings().overlay
+  const patchSettings = useStore((s) => s.patchSettings)
+  const current = TOAST_PRESETS.find((p) => Math.abs(p.x - o.toastX) < 0.6 && Math.abs(p.y - o.toastY) < 0.6)
+  return (
+    <Section title="Уведомления в игре" icon="chat">
+      <p className="hint" style={{ margin: 0 }}>
+        Где появляются уведомления отыгровок. Выберите место на схеме экрана или расставьте мышью прямо поверх игры —
+        вместе с панелью. Меняется сразу, без «Сохранить».
+      </p>
+      <div className="screen-map" role="group" aria-label="Место уведомлений на экране">
+        {TOAST_PRESETS.map((p) => {
+          const { ax, ay } = toastAnchor(p.x, p.y)
+          return (
+            <button
+              key={p.label}
+              type="button"
+              title={p.label}
+              aria-label={p.label}
+              aria-pressed={current === p}
+              style={{ left: `${p.x}%`, top: `${p.y}%`, '--ax': ax, '--ay': ay } as CSSProperties}
+              onClick={() => patchSettings((s) => ({ ...s, overlay: { ...s.overlay, toastX: p.x, toastY: p.y } }))}
+            />
+          )
+        })}
+      </div>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+        <button type="button" className="btn small primary" onClick={() => api.panelAction('layout')}>
+          <Icon name="cursor" size={15} />
+          Расставить на экране
+        </button>
+        <span className="hint">{current ? current.label : 'Своё место — выбрано мышью'}</span>
       </div>
     </Section>
   )

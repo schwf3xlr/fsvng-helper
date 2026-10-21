@@ -6,7 +6,8 @@ import type { Settings } from './settings'
 export type WindowMode = 'active' | 'hidden'
 
 /** Панель поверх игры: спрятана, видна (клики идут в игру) или активна (мышь и клавиатура) */
-export type PanelMode = 'hidden' | 'passive' | 'interactive'
+/** layout — расстановка: панель и уведомления перетаскиваются мышью по всему экрану */
+export type PanelMode = 'hidden' | 'passive' | 'interactive' | 'layout'
 
 export type TabId = 'binds' | 'memos' | 'laws' | 'checklists' | 'settings'
 

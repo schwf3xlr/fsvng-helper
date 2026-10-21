@@ -30,6 +30,7 @@ export function App() {
 
   return (
     <div className="shell">
+      <div className="ambient" aria-hidden="true" />
       <Sidebar />
       <main className="main">
         {tab === 'binds' && <BindsPage />}
@@ -48,8 +49,10 @@ export function TitleBar({ title, sub, actions }: { title: string; sub?: ReactNo
   return (
     <>
       <header className="titlebar">
-        <h1>{title}</h1>
-        {sub && <span className="sub">{sub}</span>}
+        <div className="title-block">
+          <h1>{title}</h1>
+          {sub && <span className="sub">{sub}</span>}
+        </div>
         <div className="actions">{actions}</div>
         <div className="win-buttons">
           <button type="button" aria-label="Свернуть" onClick={() => api.windowAction('minimize')}>
@@ -94,10 +97,10 @@ function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <Emblem size={38} />
+        <Emblem size={40} />
         <div>
-          <div className="brand-name">ФСВНГ HELPER</div>
-          <div className="brand-sub">УФСВНГ · RMRP</div>
+          <div className="brand-name">ФСВНГ</div>
+          <div className="brand-sub">Helper · RMRP</div>
         </div>
       </div>
 
@@ -117,7 +120,9 @@ function Sidebar() {
       <nav className="nav" aria-label="Разделы">
         {TABS.map((t) => (
           <button key={t.id} type="button" aria-current={tab === t.id ? 'page' : undefined} onClick={() => setTab(t.id)}>
-            <Icon name={t.icon} />
+            <span className="nav-icon">
+              <Icon name={t.icon} size={17} />
+            </span>
             {t.label}
             {counts[t.id] !== undefined && <span className="count">{counts[t.id]}</span>}
           </button>
@@ -153,18 +158,20 @@ function Sidebar() {
             {panel === 'hidden' ? 'Показать панель' : 'Скрыть панель'}
           </button>
         </div>
-        <div className="status-row">
-          <span className={`dot${game.active ? ' ok' : ''}`} />
-          {game.active ? 'GTA на переднем плане' : 'GTA не активна'}
-        </div>
-        <div className="status-row">
-          <span className={`dot${elevated ? ' ok' : ' warn'}`} />
-          {elevated ? 'Права администратора' : 'Без прав администратора'}
-          {!elevated && (
-            <button type="button" onClick={() => api.restartAsAdmin()}>
-              дать
-            </button>
-          )}
+        <div className="status-pills">
+          <span className="status-row" title={game.active ? 'GTA на переднем плане' : 'GTA не на переднем плане'}>
+            <span className={`dot${game.active ? ' ok' : ''}`} />
+            {game.active ? 'GTA активна' : 'GTA не активна'}
+          </span>
+          <span className="status-row" title={elevated ? 'Права администратора есть' : 'Нет прав администратора'}>
+            <span className={`dot${elevated ? ' ok' : ' warn'}`} />
+            {elevated ? 'Админ' : 'Без прав'}
+            {!elevated && (
+              <button type="button" onClick={() => api.restartAsAdmin()}>
+                дать
+              </button>
+            )}
+          </span>
         </div>
       </div>
     </aside>

@@ -245,7 +245,7 @@ export class OverlayWindow {
     const win = this.win
     // Сразу, до смены фокуса: обработчик blur не должен увидеть старый режим
     this.panel = mode
-    if (mode === 'interactive') {
+    if (mode === 'interactive' || mode === 'layout') {
       const fg = foregroundHwnd()
       if (fg && fg != this.hwnd) this.returnFocusTo = fg
       if (!this.canActivate) {
@@ -255,8 +255,10 @@ export class OverlayWindow {
         win.setSkipTaskbar(true)
       }
       setNoActivate(this.hwnd, false)
-      // Клики проходят насквозь, пока курсор не над панелью (см. setMouseOverPanel)
-      win.setIgnoreMouseEvents(true, { forward: true })
+      // Клики проходят насквозь, пока курсор не над панелью (см. setMouseOverPanel).
+      // В расстановке мышь у оверлея по всему экрану
+      if (mode === 'layout') win.setIgnoreMouseEvents(false)
+      else win.setIgnoreMouseEvents(true, { forward: true })
       this.raise()
       forceForeground(this.hwnd)
       win.focus()

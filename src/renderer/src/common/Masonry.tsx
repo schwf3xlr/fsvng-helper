@@ -1,6 +1,6 @@
 // Карточки разной высоты без дыр: раскладываем по колонкам, каждую — в самую короткую.
 // Порядок при этом остаётся построчным: 1, 2, 3 — в первом ряду, дальше куда влезает.
-import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
 export function Masonry<T>({
   items,
@@ -57,7 +57,7 @@ export function Masonry<T>({
         <div key={c} className="masonry-col" style={{ gap }}>
           {items.map((item, i) =>
             columns[i] === c ? (
-              <div key={keys[i]} data-mkey={keys[i]}>
+              <div key={keys[i]} data-mkey={keys[i]} className="masonry-item" style={{ '--i': i } as CSSProperties}>
                 {render(item)}
               </div>
             ) : null

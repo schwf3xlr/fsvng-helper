@@ -103,6 +103,13 @@ export interface Settings {
     scale: number
     tab: PanelTab
     checklistId: string | null
+    /**
+     * Уведомления: точка привязки в процентах экрана. Левая треть — стопка прижата
+     * левым краем, правая — правым, середина — по центру; верхняя половина экрана —
+     * растёт вниз, нижняя — вверх.
+     */
+    toastX: number
+    toastY: number
   }
   game: {
     processNames: string[]
@@ -126,9 +133,27 @@ export interface Settings {
    * по КоАП — арест вместо штрафа (ст. 4.6 КоАП)
    */
   calcAlt: string[]
-  /** До какой версии стандартных отыгровок обновлены бинды (см. main/settings.ts) */
-  bindsRev: number
+  /** Версия настроек: до какой версии применены разовые обновления (см. main/settings.ts) */
+  rev: number
 }
+
+/** Как прижата стопка уведомлений к точке привязки */
+export function toastAnchor(x: number, y: number): { ax: 0 | 50 | 100; ay: 0 | 100 } {
+  return { ax: x < 100 / 3 ? 0 : x > 200 / 3 ? 100 : 50, ay: y < 50 ? 0 : 100 }
+}
+
+/** Готовые места для уведомлений — 3 × 3 по экрану */
+export const TOAST_PRESETS: { x: number; y: number; label: string }[] = [
+  { x: 1.5, y: 3, label: 'Слева сверху' },
+  { x: 50, y: 3, label: 'Сверху по центру' },
+  { x: 98.5, y: 3, label: 'Справа сверху' },
+  { x: 1.5, y: 34, label: 'Слева под чатом' },
+  { x: 50, y: 30, label: 'По центру' },
+  { x: 98.5, y: 34, label: 'Справа' },
+  { x: 1.5, y: 97, label: 'Слева снизу' },
+  { x: 50, y: 88, label: 'Снизу по центру' },
+  { x: 98.5, y: 97, label: 'Справа снизу' }
+]
 
 export const SCALE_MIN = 60
 export const SCALE_MAX = 160
@@ -246,8 +271,12 @@ export function uid(): string {
 
 const line = (text: string): BindLine => ({ text, delayMs: null })
 
-/** Версия набора стандартных отыгровок */
-export const BINDS_REV = 2
+/**
+ * Версия настроек для разовых обновлений:
+ *   2 — новый набор стандартных отыгровок (0.4.0);
+ *   3 — ввод текста вставкой из буфера по умолчанию (0.5.0).
+ */
+export const SETTINGS_REV = 3
 
 export const DEFAULT_BINDS: Bind[] = [
   {
@@ -407,9 +436,21 @@ export function defaultSettings(): Settings {
     binds: structuredClone(DEFAULT_BINDS),
     hotkeys: { window: 'F1', panel: 'F3', interact: 'F4', step: 'F6', stepBack: 'Shift+F6', stop: 'End' },
     // Паузы как в старом AHK — с ними сервер не кикает за флуд
-    chat: { openKey: 'T', method: 'keys', openDelayMs: 200, lineDelayMs: 200, closeWithEnter: true },
+    // Вставка из буфера надёжнее посимвольной печати: буквы не теряются
+    chat: { openKey: 'T', method: 'paste', openDelayMs: 200, lineDelayMs: 200, closeWithEnter: true },
     ui: { accent: ACCENTS[0].color, scale: 100, autostart: false, lawFontSize: 15 },
-    overlay: { x: null, y: null, width: 400, maxHeight: 70, opacity: 94, scale: 100, tab: 'memos', checklistId: 'detention' },
+    overlay: {
+      x: null,
+      y: null,
+      width: 400,
+      maxHeight: 70,
+      opacity: 94,
+      scale: 100,
+      tab: 'memos',
+      checklistId: 'detention',
+      toastX: 1.5,
+      toastY: 34
+    },
     game: { processNames: ['GTA5.exe', 'GTA5_Enhanced.exe'], classNames: ['grcWindow'] },
     testMode: false,
     onboarded: false,
@@ -419,7 +460,7 @@ export function defaultSettings(): Settings {
     checks: {},
     calc: [],
     calcAlt: [],
-    bindsRev: BINDS_REV
+    rev: SETTINGS_REV
   }
 }
 

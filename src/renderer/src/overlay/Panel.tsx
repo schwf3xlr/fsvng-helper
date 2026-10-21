@@ -1,6 +1,6 @@
 // Панель поверх игры. Видимая — клики идут в игру; активная (клавиша «Управлять
 // панелью») — мышь и клавиатура у панели, Esc возвращает в игру.
-import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type PointerEvent as ReactPointerEvent } from 'react'
 import { lawSource, type LawId } from '../../../shared/laws'
 import { isCheckable, type PanelTab } from '../../../shared/settings'
 import { ChecklistSteps, useChecklistToggle } from '../app/ChecklistsPage'
@@ -24,12 +24,28 @@ export function Panel() {
   const mode = useStore((s) => s.app!.panel)
   const patchSettings = useStore((s) => s.patchSettings)
   const interactive = mode === 'interactive'
+  // Расстановка: панель только двигают, содержимое не трогают
+  const editing = mode === 'layout'
+  const canDrag = interactive || editing
   const o = settings.overlay
   const zoom = o.scale / 100
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null)
   const [article, setArticle] = useState<ArticleRef | null>(null)
   const dragFrom = useRef<{ dx: number; dy: number } | null>(null)
   const [viewport, setViewport] = useState({ w: window.innerWidth, h: window.innerHeight })
+  const section = useRef<HTMLElement>(null)
+  /** Высота панели на экране (с учётом масштаба) — чтобы низ не уходил за край */
+  const [boxH, setBoxH] = useState(80)
+
+  useLayoutEffect(() => {
+    const el = section.current
+    if (!el) return
+    const update = () => setBoxH(Math.max(80, el.getBoundingClientRect().height))
+    update()
+    const observer = new ResizeObserver(update)
+    observer.observe(el)
+    return () => observer.disconnect()
+  }, [])
 
   useEffect(() => {
     const onResize = () => setViewport({ w: window.innerWidth, h: window.innerHeight })
@@ -54,14 +70,16 @@ export function Panel() {
     if (!interactive) api.setPanelMouse(false)
   }, [interactive])
 
+  // Положение задаёт внешняя рамка без zoom: CSS zoom умножает и left/top, из-за чего
+  // при масштабе меньше 100 % панель не доезжала до правого края, а при большем — уезжала
   const width = o.width * zoom
   const left = drag?.x ?? (o.x !== null ? (o.x / 100) * viewport.w : viewport.w - width - 28)
   const top = drag?.y ?? (o.y !== null ? (o.y / 100) * viewport.h : viewport.h * 0.12)
   const clampedLeft = Math.min(Math.max(0, left), Math.max(0, viewport.w - width))
-  const clampedTop = Math.min(Math.max(0, top), viewport.h - 80)
+  const clampedTop = Math.min(Math.max(0, top), Math.max(0, viewport.h - boxH))
 
   const onHeadDown = (e: ReactPointerEvent) => {
-    if (!interactive || (e.target as HTMLElement).closest('button')) return
+    if (!canDrag || (e.target as HTMLElement).closest('button')) return
     dragFrom.current = { dx: e.clientX - clampedLeft, dy: e.clientY - clampedTop }
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
   }
@@ -76,7 +94,7 @@ export function Panel() {
     }
     dragFrom.current = null
     const x = Math.round((Math.min(Math.max(0, drag.x), viewport.w - width) / viewport.w) * 1000) / 10
-    const y = Math.round((Math.min(Math.max(0, drag.y), viewport.h - 80) / viewport.h) * 1000) / 10
+    const y = Math.round((Math.min(Math.max(0, drag.y), Math.max(0, viewport.h - boxH)) / viewport.h) * 1000) / 10
     patchSettings((s) => ({ ...s, overlay: { ...s.overlay, x, y } }))
     setDrag(null)
   }
@@ -88,82 +106,87 @@ export function Panel() {
   }
 
   return (
-    <section
-      className={`panel${interactive ? ' interactive' : ''}`}
-      aria-label="Панель ФСВНГ Helper"
-      style={{
-        left: clampedLeft,
-        top: clampedTop,
-        width: o.width,
-        maxHeight: (viewport.h * o.maxHeight) / 100 / zoom,
-        zoom,
-        background: `rgba(18, 14, 16, ${o.opacity / 100})`
-      }}
-      onMouseEnter={() => interactive && api.setPanelMouse(true)}
-      onMouseLeave={() => interactive && !dragFrom.current && api.setPanelMouse(false)}
-    >
-      <header className="panel-head" onPointerDown={onHeadDown} onPointerMove={onHeadMove} onPointerUp={onHeadUp}>
-        <Emblem size={22} />
-        <span className="title">ФСВНГ</span>
-        <div className="panel-tabs" role="group" aria-label="Вкладки панели">
-          {TABS.map((t) => (
-            <button key={t.id} type="button" aria-label={t.label} title={t.label} aria-pressed={o.tab === t.id} onClick={() => setTab(t.id)}>
-              <Icon name={t.icon} size={16} filled={t.icon === 'star' ? o.tab === t.id : undefined} />
-            </button>
-          ))}
+    <div className="panel-anchor" style={{ left: clampedLeft, top: clampedTop }}>
+      <section
+        ref={section}
+        className={`panel${interactive ? ' interactive' : ''}${editing ? ' editing' : ''}${drag ? ' dragging' : ''}`}
+        aria-label="Панель ФСВНГ Helper"
+        style={
+          {
+            width: o.width,
+            maxHeight: (viewport.h * o.maxHeight) / 100 / zoom,
+            zoom,
+            '--panel-alpha': o.opacity / 100
+          } as CSSProperties
+        }
+        onMouseEnter={() => interactive && api.setPanelMouse(true)}
+        onMouseLeave={() => interactive && !dragFrom.current && api.setPanelMouse(false)}
+      >
+        <header className="panel-head" onPointerDown={onHeadDown} onPointerMove={onHeadMove} onPointerUp={onHeadUp}>
+          <Emblem size={22} />
+          <span className="title">ФСВНГ</span>
+          <div className="panel-tabs" role="group" aria-label="Вкладки панели">
+            {TABS.map((t) => (
+              <button key={t.id} type="button" aria-label={t.label} title={t.label} aria-pressed={o.tab === t.id} onClick={() => setTab(t.id)}>
+                <Icon name={t.icon} size={16} filled={t.icon === 'star' ? o.tab === t.id : undefined} />
+              </button>
+            ))}
+          </div>
+        </header>
+
+        <div className="panel-body">
+          {article ? (
+            <ArticleView refTo={article} onBack={() => setArticle(null)} interactive={interactive} />
+          ) : (
+            <>
+              {o.tab === 'memos' && <FavoritesTab interactive={interactive} onOpen={setArticle} />}
+              {o.tab === 'search' && <SearchTab interactive={interactive} onOpen={setArticle} />}
+              {o.tab === 'checklist' && <ChecklistTab interactive={interactive} />}
+              {o.tab === 'binds' && <BindsTab interactive={interactive} />}
+            </>
+          )}
         </div>
-      </header>
 
-      <div className="panel-body">
-        {article ? (
-          <ArticleView refTo={article} onBack={() => setArticle(null)} interactive={interactive} />
-        ) : (
-          <>
-            {o.tab === 'memos' && <FavoritesTab interactive={interactive} onOpen={setArticle} />}
-            {o.tab === 'search' && <SearchTab interactive={interactive} onOpen={setArticle} />}
-            {o.tab === 'checklist' && <ChecklistTab interactive={interactive} />}
-            {o.tab === 'binds' && <BindsTab interactive={interactive} />}
-          </>
-        )}
-      </div>
+        <CalcBar interactive={interactive} />
 
-      <CalcBar interactive={interactive} />
-
-      <footer className="panel-foot">
-        {interactive ? (
-          <>
-            <Kbd>Esc</Kbd> {article ? 'назад' : 'в игру'}
-            <span className="grow" />
-            <span>перетащить — за заголовок</span>
-          </>
-        ) : (
-          <>
-            {o.tab === 'checklist' && settings.hotkeys.step ? (
-              <>
-                <Kbd>{settings.hotkeys.step}</Kbd> шаг
-                {settings.hotkeys.stepBack && (
-                  <>
-                    <Kbd>{settings.hotkeys.stepBack}</Kbd> отмена
-                  </>
-                )}
-              </>
-            ) : (
-              settings.hotkeys.interact && (
+        <footer className="panel-foot">
+          {editing ? (
+            <span>Перетащите панель за заголовок</span>
+          ) : interactive ? (
+            <>
+              <Kbd>Esc</Kbd> {article ? 'назад' : 'в игру'}
+              <span className="grow" />
+              <span>перетащить — за заголовок</span>
+            </>
+          ) : (
+            <>
+              {o.tab === 'checklist' && settings.hotkeys.step ? (
                 <>
-                  <Kbd>{settings.hotkeys.interact}</Kbd> управлять
+                  <Kbd>{settings.hotkeys.step}</Kbd> шаг
+                  {settings.hotkeys.stepBack && (
+                    <>
+                      <Kbd>{settings.hotkeys.stepBack}</Kbd> отмена
+                    </>
+                  )}
                 </>
-              )
-            )}
-            <span className="grow" />
-            {settings.hotkeys.panel && (
-              <>
-                <Kbd>{settings.hotkeys.panel}</Kbd> скрыть
-              </>
-            )}
-          </>
-        )}
-      </footer>
-    </section>
+              ) : (
+                settings.hotkeys.interact && (
+                  <>
+                    <Kbd>{settings.hotkeys.interact}</Kbd> управлять
+                  </>
+                )
+              )}
+              <span className="grow" />
+              {settings.hotkeys.panel && (
+                <>
+                  <Kbd>{settings.hotkeys.panel}</Kbd> скрыть
+                </>
+              )}
+            </>
+          )}
+        </footer>
+      </section>
+    </div>
   )
 }
 

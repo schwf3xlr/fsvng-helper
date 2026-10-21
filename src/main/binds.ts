@@ -70,6 +70,8 @@ export class BindRunner {
         if (chat.method === 'paste') {
           await clipboard.writeText(lines[i].text)
           paste()
+          // Игра читает буфер по Ctrl+V — даём ей время до Enter
+          await sleep(60)
         } else {
           typeText(lines[i].text)
         }

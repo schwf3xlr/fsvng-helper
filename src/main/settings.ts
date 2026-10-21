@@ -4,12 +4,12 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from '
 import { dirname, join } from 'node:path'
 import {
   ACCENTS,
-  BINDS_REV,
   DEFAULT_BINDS,
   DEFAULT_BINDS_V1,
   defaultSettings,
   SCALE_MAX,
   SCALE_MIN,
+  SETTINGS_REV,
   type Bind,
   type Settings
 } from '../shared/settings'
@@ -24,7 +24,7 @@ const clamp = (v: unknown, min: number, max: number, def: number) =>
 const sameKey = (a: string | null, b: string | null) => !!a && !!b && a.toLowerCase() === b.toLowerCase()
 
 /**
- * Стандартные отыгровки 0.2–0.3 → набор BINDS_REV. Нетронутые старые убираются или
+ * Стандартные отыгровки 0.2–0.3 → новый набор (версия настроек 2). Нетронутые старые убираются или
  * заменяются новыми, свои и изменённые остаются на месте.
  */
 function migrateBinds(binds: Bind[], hotkeys: Settings['hotkeys']): Bind[] {
@@ -96,8 +96,13 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
     if (others.some((o) => sameKey(o, s.hotkeys[key]))) s.hotkeys[key] = null
   }
 
-  if (raw.binds && (raw.bindsRev ?? 1) < BINDS_REV) s.binds = migrateBinds(s.binds, s.hotkeys)
-  s.bindsRev = BINDS_REV
+  // Разовые обновления для файлов прошлых версий (у новых настроек всё уже по умолчанию)
+  const old = raw as Partial<Settings> & { bindsRev?: number }
+  const rev = old.rev ?? old.bindsRev ?? 1
+  if (raw.binds && rev < 2) s.binds = migrateBinds(s.binds, s.hotkeys)
+  if (raw.chat && rev < 3) s.chat.method = 'paste'
+  delete (s as Partial<Settings> & { bindsRev?: number }).bindsRev
+  s.rev = SETTINGS_REV
   return s
 }
 

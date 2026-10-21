@@ -1,6 +1,7 @@
 // Демо-режим: интерфейс открыт в обычном браузере, без Electron (npm run ui).
 // Законы берутся с dev-сервера (/dev-laws), если он их отдаёт.
-// Параметры адреса: ?onboarding — мастер первого запуска, ?panel=interactive — активная панель.
+// Параметры адреса: ?onboarding — мастер первого запуска, ?panel=interactive|layout — режим панели,
+// ?scale=60 — масштаб панели.
 import type { AppApi, AppState, PanelMode, Toast } from '../../../shared/api'
 import { LAW_SOURCES, type LawDoc, type LawId } from '../../../shared/laws'
 import { defaultSettings } from '../../../shared/settings'
@@ -20,6 +21,7 @@ export function createMockApi(): AppApi {
   // Пример из вопроса: ст. 89 — срок, ст. 91 — штраф вместо срока
   settings.calc = ['uk:89:', 'uk:91:', 'koap:8.7:']
   settings.calcAlt = ['uk:91:']
+  if (params.has('scale')) settings.overlay.scale = Number(params.get('scale'))
 
   const state: AppState = {
     settings,

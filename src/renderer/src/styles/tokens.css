@@ -1,63 +1,86 @@
 /* ФСВНГ Helper — общие цвета, шрифты и элементы обоих окон.
-   Тема «крап»: графит с тёплым оттенком, краповый акцент и золото Росгвардии. */
-@import '@fontsource/golos-text/cyrillic-400.css';
-@import '@fontsource/golos-text/cyrillic-500.css';
-@import '@fontsource/golos-text/cyrillic-600.css';
-@import '@fontsource/golos-text/cyrillic-700.css';
-@import '@fontsource/golos-text/latin-400.css';
-@import '@fontsource/golos-text/latin-600.css';
-@import '@fontsource/oswald/cyrillic-500.css';
-@import '@fontsource/oswald/cyrillic-600.css';
-@import '@fontsource/oswald/latin-500.css';
-@import '@fontsource/oswald/latin-600.css';
+   «Ночной пост»: графитовый холст, стеклянные поверхности с тонкой светлой кромкой,
+   краповый акцент с мягким свечением и золото Росгвардии — только в мелочах. */
+@import '@fontsource-variable/unbounded/wght.css';
+@import '@fontsource-variable/onest/wght.css';
 @import '@fontsource/jetbrains-mono/cyrillic-400.css';
 @import '@fontsource/jetbrains-mono/cyrillic-600.css';
 @import '@fontsource/jetbrains-mono/latin-400.css';
 @import '@fontsource/jetbrains-mono/latin-600.css';
 
 :root {
-  --bg: #141113;
-  --sidebar: #0f0c0e;
-  --bar: #110e10;
-  --card: #1b1719;
-  --card-raised: #231d20;
-  --inset: #120f11;
-  --deep: #0b090a;
-  --line: #2a2326;
-  --line-2: #33292d;
-  --line-3: #46393e;
-  --key: #282125;
-  --text: #f0eae8;
-  --text-2: #ddd5d3;
-  --text-3: #cbc1c0;
-  --muted: #ada1a3;
-  --muted-2: #9f9295;
-  --faint: #8d8184;
-  --gold: #d4af5a;
-  --gold-text: #e3c57e;
-  --me: #c9a3f5;
-  --do: #8fd1c8;
-  --warn: #f08c6c;
-  --warn-text: #f6b9a5;
-  --ok: #6fcf97;
-  --danger: #ff7a7a;
+  /* Холст и поверхности */
+  --canvas: #08070a;
+  --bg: #100e11;
+  --sidebar: transparent;
+  --bar: #0d0b0e;
+  --card: rgba(255, 255, 255, 0.035);
+  --card-raised: #1a1619;
+  --card-solid: #151215;
+  --inset: rgba(0, 0, 0, 0.32);
+  --deep: #070608;
+  --glass: linear-gradient(180deg, rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.018));
+  --glass-hover: linear-gradient(180deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.03));
+  --edge: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
+  /* Линии */
+  --line: rgba(255, 255, 255, 0.06);
+  --line-2: rgba(255, 255, 255, 0.085);
+  --line-3: rgba(255, 255, 255, 0.14);
+  --key: #221d20;
+
+  /* Текст */
+  --text: #f4eff0;
+  --text-2: #ddd6d8;
+  --text-3: #c3babd;
+  --muted: #a89da1;
+  --muted-2: #998e92;
+  --faint: #827880;
+
+  /* Смысловые цвета */
+  --gold: #d9b45f;
+  --gold-text: #ecd08e;
+  --me: #cdaaf7;
+  --do: #8fd8cc;
+  --warn: #f2915f;
+  --warn-text: #f7bfa2;
+  --ok: #5fd39a;
+  --danger: #ff6b7a;
+
+  /* Акцент (переопределяется из настроек — theme.ts) */
   --accent: #b3243b;
   --accent-soft: #b3243b2b;
   --accent-line: #b3243b8c;
-  --accent-text: #e06a7c;
+  --accent-text: #e46b7e;
   --on-accent: #ffffff;
+  --accent-deep: color-mix(in oklab, var(--accent) 62%, #000);
+  --accent-bright: color-mix(in oklab, var(--accent) 78%, #fff);
+  --accent-grad: linear-gradient(135deg, var(--accent-bright) 0%, var(--accent) 48%, var(--accent-deep) 100%);
+  --accent-glow: 0 10px 28px -10px color-mix(in srgb, var(--accent) 85%, transparent);
 
-  --font: 'Golos Text', 'Segoe UI', system-ui, sans-serif;
-  --font-caps: 'Oswald', 'Golos Text', sans-serif;
+  /* Радиусы и тени */
+  --r-xs: 7px;
+  --r-sm: 10px;
+  --r: 14px;
+  --r-lg: 18px;
+  --r-xl: 22px;
+  --shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 18px 40px -18px rgba(0, 0, 0, 0.7);
+  --shadow-pop: 0 24px 60px -12px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.08);
+  --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Шрифты */
+  --font: 'Onest Variable', 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Unbounded Variable', 'Onest Variable', sans-serif;
+  --font-caps: var(--font);
   --font-mono: 'JetBrains Mono', 'Cascadia Mono', Consolas, monospace;
 
   font-family: var(--font);
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--text);
   color-scheme: dark;
   -webkit-font-smoothing: antialiased;
+  font-feature-settings: 'ss01', 'cv11';
 }
 
 * {
@@ -77,46 +100,60 @@ button {
 }
 button:disabled {
   cursor: default;
-  opacity: 0.45;
+  opacity: 0.4;
 }
 :focus-visible {
   outline: 2px solid var(--accent-text);
-  outline-offset: 1px;
+  outline-offset: 2px;
+}
+::selection {
+  background: color-mix(in srgb, var(--accent) 55%, transparent);
+  color: #fff;
 }
 
 ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
+  width: 12px;
+  height: 12px;
 }
 ::-webkit-scrollbar-thumb {
-  background: #3a2f33;
-  border: 3px solid transparent;
+  background: rgba(255, 255, 255, 0.09);
+  border: 4px solid transparent;
   background-clip: padding-box;
-  border-radius: 6px;
+  border-radius: 8px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background-color: #4a3c41;
+  background-color: rgba(255, 255, 255, 0.18);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
 }
 
 mark {
   padding: 0 2px;
-  border-radius: 3px;
-  background: var(--accent-soft);
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--accent) 32%, transparent);
   color: var(--text);
 }
 mark.current {
   background: var(--accent);
   color: var(--on-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
+/* Подпись-метка: мелкие прописные с разрядкой */
 .caps {
   margin: 0;
-  font-family: var(--font-caps);
-  font-weight: 500;
-  font-size: 13px;
-  letter-spacing: 0.12em;
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--muted-2);
+}
+.display {
+  font-family: var(--font-display);
+  font-weight: 500;
+  letter-spacing: -0.01em;
 }
 .hint {
   font-size: 12px;
@@ -140,43 +177,69 @@ mark.current {
 /* ---------- Кнопки ---------- */
 
 .btn {
+  position: relative;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 7px;
+  gap: 8px;
   height: 40px;
-  padding: 0 15px;
+  padding: 0 16px;
   border: 1px solid var(--line-3);
-  border-radius: 9px;
-  background: transparent;
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--text);
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 550;
   white-space: nowrap;
+  transition:
+    background 0.18s,
+    border-color 0.18s,
+    transform 0.12s var(--ease),
+    box-shadow 0.18s,
+    filter 0.18s;
 }
 .btn:hover:not(:disabled) {
-  background: #ffffff0b;
+  background: rgba(255, 255, 255, 0.07);
+  border-color: rgba(255, 255, 255, 0.2);
+}
+.btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.985);
 }
 .btn.primary {
   border-color: transparent;
-  background: var(--accent);
+  background: var(--accent-grad);
   color: var(--on-accent);
-  font-weight: 600;
+  font-weight: 650;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    var(--accent-glow);
 }
 .btn.primary:hover:not(:disabled) {
-  background: var(--accent);
-  filter: brightness(1.12);
+  background: var(--accent-grad);
+  filter: brightness(1.1) saturate(1.05);
+}
+.btn.primary:disabled {
+  box-shadow: none;
 }
 .btn.small {
   height: 34px;
-  padding: 0 12px;
-  border-radius: 8px;
+  padding: 0 13px;
+  border-radius: 9px;
+  font-size: 12.5px;
 }
 .btn.ghost {
   border-color: transparent;
+  background: transparent;
+}
+.btn.ghost:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.06);
 }
 .btn.danger {
   color: var(--warn-text);
+}
+.btn.danger:hover:not(:disabled) {
+  border-color: color-mix(in srgb, var(--danger) 45%, transparent);
+  background: color-mix(in srgb, var(--danger) 10%, transparent);
 }
 .btn.block {
   width: 100%;
@@ -190,13 +253,20 @@ mark.current {
   align-items: center;
   justify-content: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: 10px;
   background: transparent;
   color: var(--muted);
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.12s var(--ease);
 }
 .icon-btn:hover:not(:disabled) {
-  background: #ffffff10;
+  background: rgba(255, 255, 255, 0.08);
   color: var(--text);
+}
+.icon-btn:active:not(:disabled) {
+  transform: scale(0.92);
 }
 .icon-btn.on {
   color: var(--gold);
@@ -207,30 +277,40 @@ mark.current {
   align-items: center;
   gap: 4px;
   height: 30px;
-  padding: 0 10px;
-  border: 1px solid var(--line-3);
-  border-radius: 8px;
-  background: transparent;
+  padding: 0 11px;
+  border: 1px solid var(--line-2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
   color: var(--text-2);
-  font-size: 12.5px;
-  font-weight: 500;
+  font-size: 12px;
+  font-weight: 550;
   white-space: nowrap;
+  transition:
+    border-color 0.15s,
+    color 0.15s,
+    background 0.15s;
 }
 .link-btn:hover {
   border-color: var(--accent-line);
+  background: var(--accent-soft);
   color: var(--text);
 }
 
+/* Клавиша — как колпачок на клавиатуре */
 .kbd {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   min-width: 26px;
   height: 22px;
-  padding: 0 6px;
-  border-radius: 5px;
-  background: var(--key);
-  border: 1px solid var(--line-3);
+  padding: 0 7px;
+  border-radius: 6px;
+  background: linear-gradient(180deg, #2d272a, #1d191b);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-bottom-color: rgba(0, 0, 0, 0.6);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 1px 0 rgba(0, 0, 0, 0.5);
   color: var(--text);
   font-family: var(--font-mono);
   font-size: 11px;
@@ -238,12 +318,16 @@ mark.current {
   white-space: nowrap;
 }
 .kbd.accent {
-  background: var(--accent-soft);
-  border-color: var(--accent-line);
-  color: var(--accent-text);
+  background: var(--accent-grad);
+  border-color: transparent;
+  color: var(--on-accent);
+  box-shadow: var(--accent-glow);
 }
 .kbd.empty {
   color: var(--faint);
+  background: transparent;
+  box-shadow: none;
+  border-style: dashed;
 }
 
 /* ---------- Поля ---------- */
@@ -252,16 +336,24 @@ mark.current {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 4px 0 12px;
+  gap: 9px;
+  height: 42px;
+  padding: 0 5px 0 14px;
   background: var(--inset);
   border: 1px solid var(--line-2);
-  border-radius: 9px;
+  border-radius: 12px;
   color: var(--faint);
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s;
+}
+.search:hover {
+  border-color: var(--line-3);
 }
 .search:focus-within {
   border-color: var(--accent-line);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  color: var(--accent-text);
 }
 .search input {
   flex: 1;
@@ -274,6 +366,10 @@ mark.current {
 }
 .search input::placeholder {
   color: var(--faint);
+}
+.search input::-webkit-search-cancel-button {
+  filter: grayscale(1) brightness(1.6);
+  cursor: pointer;
 }
 .search .count {
   padding: 0 6px;
@@ -290,8 +386,9 @@ mark.current {
 .field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 7px;
   font-size: 12px;
+  font-weight: 500;
   color: var(--muted-2);
   min-width: 0;
 }
@@ -299,20 +396,29 @@ mark.current {
 .field input,
 .field select,
 .field textarea {
-  height: 40px;
+  height: 42px;
   min-width: 0;
-  padding: 0 11px;
+  padding: 0 13px;
   background: var(--inset);
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: 12px;
   color: var(--text);
   font-size: 14px;
+  font-weight: 450;
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s;
 }
 .field textarea {
   height: auto;
-  padding: 10px 11px;
-  line-height: 1.5;
+  padding: 11px 13px;
+  line-height: 1.55;
   resize: vertical;
+}
+.input:hover,
+.field input:hover,
+.field textarea:hover {
+  border-color: var(--line-3);
 }
 .input:focus,
 .field input:focus,
@@ -320,24 +426,63 @@ mark.current {
 .field textarea:focus {
   outline: none;
   border-color: var(--accent-line);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+/* Флажок — свой: квадрат со скруглением, краповая заливка и галочка */
+input[type='checkbox'] {
+  -webkit-appearance: none;
+  appearance: none;
+  position: relative;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  border-radius: 6px;
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  background: rgba(0, 0, 0, 0.25);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+input[type='checkbox']:hover {
+  border-color: var(--accent-text);
+}
+input[type='checkbox']:checked {
+  border-color: transparent;
+  background: var(--accent-grad);
+  box-shadow: 0 4px 12px -4px var(--accent);
+}
+input[type='checkbox']::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: #fff;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5.5 12.5l4.2 4.2L18.5 8'/%3E%3C/svg%3E")
+    center / 13px no-repeat;
+  transform: scale(0.4);
+  opacity: 0;
+  transition:
+    transform 0.18s var(--ease),
+    opacity 0.12s;
+}
+input[type='checkbox']:checked::after {
+  transform: scale(1);
+  opacity: 1;
 }
 
 .check {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 11px;
   min-height: 36px;
   font-size: 14px;
   color: var(--text-2);
+  cursor: pointer;
 }
-.check input,
-input[type='checkbox'] {
-  width: 17px;
-  height: 17px;
-  margin: 0;
-  flex-shrink: 0;
-  accent-color: var(--accent);
-}
+
 /* ---------- Ползунок ---------- */
 
 input[type='range'] {
@@ -345,7 +490,7 @@ input[type='range'] {
   -webkit-appearance: none;
   appearance: none;
   width: 100%;
-  height: 22px;
+  height: 24px;
   margin: 0;
   background: transparent;
   cursor: pointer;
@@ -353,24 +498,31 @@ input[type='range'] {
 input[type='range']::-webkit-slider-runnable-track {
   height: 6px;
   border-radius: 3px;
-  background: linear-gradient(to right, var(--accent) var(--fill), var(--line-2) var(--fill));
+  background:
+    linear-gradient(90deg, var(--accent-bright), var(--accent)) 0 0 / var(--fill) 100% no-repeat,
+    rgba(255, 255, 255, 0.08);
 }
 input[type='range']::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 18px;
-  height: 18px;
-  margin-top: -6px;
+  width: 20px;
+  height: 20px;
+  margin-top: -7px;
   border-radius: 50%;
-  background: var(--text);
-  border: 4px solid var(--accent);
+  background: radial-gradient(circle at 50% 35%, #fff, #e9e1e3);
+  border: 0;
   box-shadow:
-    0 0 0 4px var(--accent-soft),
-    0 2px 6px rgba(0, 0, 0, 0.5);
-  transition: transform 0.12s;
+    0 0 0 5px color-mix(in srgb, var(--accent) 35%, transparent),
+    0 4px 10px rgba(0, 0, 0, 0.55);
+  transition:
+    transform 0.15s var(--ease),
+    box-shadow 0.15s;
 }
 input[type='range']:hover::-webkit-slider-thumb,
 input[type='range']:focus-visible::-webkit-slider-thumb {
-  transform: scale(1.15);
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 7px color-mix(in srgb, var(--accent) 30%, transparent),
+    0 4px 10px rgba(0, 0, 0, 0.55);
 }
 input[type='range']:focus {
   outline: none;
@@ -380,8 +532,8 @@ input[type='range']:focus {
   display: flex;
   flex-direction: column;
   gap: 6px;
-  font-size: 12px;
-  color: var(--muted-2);
+  font-size: 13px;
+  color: var(--text-2);
 }
 .slider-head {
   display: flex;
@@ -389,20 +541,21 @@ input[type='range']:focus {
   gap: 10px;
 }
 .slider-value {
-  min-width: 54px;
-  padding: 3px 8px;
-  border-radius: 6px;
-  background: var(--accent-soft);
+  min-width: 58px;
+  padding: 4px 9px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line-2);
   color: var(--text);
   font-family: var(--font-mono);
-  font-size: 12.5px;
+  font-size: 12px;
   font-weight: 600;
   text-align: center;
 }
 .slider-marks {
   position: relative;
   height: 16px;
-  margin: -2px 9px 0;
+  margin: -2px 10px 0;
 }
 .slider-marks button {
   position: absolute;
@@ -413,7 +566,7 @@ input[type='range']:focus {
   background: transparent;
   color: var(--faint);
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10.5px;
 }
 .slider-marks button:hover,
 .slider-marks button.on {
@@ -427,35 +580,36 @@ input[type='range']:focus {
   flex-shrink: 0;
   padding: 2px;
   gap: 2px;
-  border-radius: 7px;
-  background: var(--inset);
+  border-radius: 9px;
+  background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line-2);
 }
 .measure button {
-  height: 22px;
-  padding: 0 7px;
+  height: 24px;
+  padding: 0 9px;
   border: 0;
-  border-radius: 5px;
+  border-radius: 7px;
   background: transparent;
   color: var(--muted);
   font-size: 11.5px;
   font-weight: 600;
+  transition:
+    background 0.15s,
+    color 0.15s;
+}
+.measure button:hover {
+  color: var(--text);
 }
 .measure button[aria-pressed='true'] {
-  background: var(--accent);
+  background: var(--accent-grad);
   color: var(--on-accent);
+  box-shadow: 0 4px 12px -6px var(--accent);
 }
 .measure-fixed {
   flex-shrink: 0;
+  padding: 0 4px;
   color: var(--faint);
   font-size: 11.5px;
-}
-.steps .step-num {
-  flex-shrink: 0;
-  min-width: 18px;
-  color: var(--accent-text);
-  font-family: var(--font-mono);
-  font-weight: 600;
 }
 
 /* ---------- Выпадающий список ---------- */
@@ -467,17 +621,21 @@ input[type='range']:focus {
 .select-button,
 .combo input {
   width: 100%;
-  height: 40px;
+  height: 42px;
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 10px 0 11px;
+  padding: 0 11px 0 13px;
   background: var(--inset);
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: 12px;
   color: var(--text);
   font-size: 14px;
+  font-weight: 450;
   text-align: left;
+  transition:
+    border-color 0.18s,
+    box-shadow 0.18s;
 }
 .select-button > span {
   overflow: hidden;
@@ -488,7 +646,7 @@ input[type='range']:focus {
 .combo-toggle svg {
   flex-shrink: 0;
   color: var(--muted);
-  transition: transform 0.15s;
+  transition: transform 0.2s var(--ease);
 }
 .select-button:hover,
 .combo input:hover {
@@ -499,18 +657,19 @@ input[type='range']:focus {
 .combo input:focus {
   outline: none;
   border-color: var(--accent-line);
+  box-shadow: 0 0 0 4px var(--accent-soft);
 }
 .select-button.open svg {
   transform: rotate(180deg);
 }
 .combo input {
-  padding-right: 36px;
+  padding-right: 38px;
 }
 .combo-toggle {
   position: absolute;
   top: 0;
   right: 0;
-  width: 36px;
+  width: 38px;
   height: 100%;
   display: flex;
   align-items: center;
@@ -523,27 +682,28 @@ input[type='range']:focus {
   z-index: 1000;
   overflow-y: auto;
   margin: 0;
-  padding: 5px;
+  padding: 6px;
   list-style: none;
-  background: var(--card-raised);
-  border: 1px solid var(--line-3);
-  border-radius: 10px;
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.55);
-  animation: dropdown-in 0.12s ease-out;
+  background: rgba(24, 20, 23, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 14px;
+  box-shadow: var(--shadow-pop);
+  backdrop-filter: blur(16px);
+  animation: dropdown-in 0.16s var(--ease);
 }
 @keyframes dropdown-in {
   from {
     opacity: 0;
-    transform: translateY(-4px);
+    transform: translateY(-6px) scale(0.98);
   }
 }
 .dropdown li {
   display: flex;
   align-items: center;
   gap: 8px;
-  min-height: 34px;
-  padding: 6px 9px;
-  border-radius: 7px;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 9px;
   color: var(--text-2);
   font-size: 13.5px;
   cursor: pointer;
@@ -554,7 +714,7 @@ input[type='range']:focus {
   font-size: 11.5px;
 }
 .dropdown li.active {
-  background: var(--accent-soft);
+  background: rgba(255, 255, 255, 0.07);
   color: var(--text);
 }
 .dropdown li[aria-selected='true'] {
@@ -565,28 +725,66 @@ input[type='range']:focus {
   color: var(--accent-text);
 }
 
+/* Переключатель вариантов: «таблетка» скользит по дорожке */
 .segmented {
   display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--inset);
+  gap: 3px;
+  padding: 3px;
+  background: rgba(0, 0, 0, 0.3);
   border: 1px solid var(--line-2);
-  border-radius: 10px;
+  border-radius: 12px;
 }
 .segmented button {
   flex: 1;
+  min-width: 0;
   height: 34px;
+  padding: 0 8px;
+  overflow: hidden;
+  text-overflow: ellipsis;
   border: 0;
-  border-radius: 7px;
+  border-radius: 9px;
   background: transparent;
-  color: var(--text-3);
-  font-size: 13px;
-  font-weight: 500;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 550;
+  white-space: nowrap;
+  transition:
+    background 0.18s,
+    color 0.18s,
+    box-shadow 0.18s;
+}
+.segmented button:hover {
+  color: var(--text);
 }
 .segmented button[aria-pressed='true'] {
-  background: var(--accent);
-  color: var(--on-accent);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06));
+  color: var(--text);
+  font-weight: 650;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.1),
+    0 0 0 1px var(--accent-line),
+    0 6px 16px -8px var(--accent);
+}
+
+/* Метка-«таблетка»: статус, счётчик шагов */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid var(--line-2);
+  color: var(--text-3);
+  font-size: 11.5px;
   font-weight: 600;
+  white-space: nowrap;
+}
+.pill.done {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  border-color: color-mix(in srgb, var(--ok) 30%, transparent);
+  color: var(--ok);
 }
 
 .chips {
@@ -599,139 +797,176 @@ input[type='range']:focus {
   align-items: center;
   gap: 6px;
   height: 32px;
-  padding: 0 12px;
+  padding: 0 13px;
   border: 1px solid var(--line-2);
-  border-radius: 16px;
-  background: var(--card);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.025);
   color: var(--text-3);
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 12.5px;
+  font-weight: 550;
   white-space: nowrap;
+  transition:
+    border-color 0.15s,
+    background 0.15s,
+    color 0.15s;
 }
 .chip:hover {
   border-color: var(--line-3);
+  color: var(--text);
 }
 .chip[aria-pressed='true'] {
-  border-color: var(--accent-line);
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  font-weight: 600;
+  border-color: transparent;
+  background: var(--accent-grad);
+  color: var(--on-accent);
+  font-weight: 650;
+  box-shadow: var(--accent-glow);
 }
 
 /* ---------- Значки законов ---------- */
 
 .law-badge {
-  padding: 2px 7px;
-  border-radius: 5px;
-  font-size: 11.5px;
-  font-weight: 700;
-  letter-spacing: 0.03em;
+  --c: #c8bfc2;
+  display: inline-flex;
+  align-items: center;
+  height: 21px;
+  padding: 0 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--c) 13%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--c) 22%, transparent);
+  color: var(--c);
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
   white-space: nowrap;
 }
 .law-badge.uk {
-  background: #f08c6c24;
-  color: #f4a68c;
+  --c: #ff9a7a;
 }
 .law-badge.koap {
-  background: #7fb2f024;
-  color: #a9cbf5;
+  --c: #8ec1ff;
 }
 .law-badge.pk {
-  background: #79c7b524;
-  color: #9fdccd;
+  --c: #7fdcc6;
 }
 .law-badge.fz18 {
-  background: #d4af5a24;
-  color: var(--gold-text);
+  --c: #ecd08e;
 }
 .law-badge.fz34 {
-  background: #b9a2f024;
-  color: #cdbdf5;
+  --c: #c4b1ff;
 }
 .law-badge.fz86 {
-  background: #8fc36a24;
-  color: #b4dc95;
+  --c: #a9dc85;
 }
 .law-badge.fkz28 {
-  background: #e889b824;
-  color: #f2aed0;
+  --c: #f7a6cf;
 }
 
 .stars {
-  display: inline-block;
-  padding: 0 5px;
-  border-radius: 4px;
-  background: #d4af5a1c;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--gold) 12%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 22%, transparent);
   color: var(--gold-text);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
+  font-size: 10.5px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
   white-space: nowrap;
   vertical-align: 1px;
 }
 
 .dot {
+  position: relative;
   width: 8px;
   height: 8px;
   flex-shrink: 0;
-  border-radius: 4px;
+  border-radius: 50%;
   background: var(--faint);
 }
 .dot.ok {
   background: var(--ok);
-  box-shadow: 0 0 8px var(--ok);
+  box-shadow: 0 0 10px var(--ok);
+}
+.dot.ok::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  border: 1px solid var(--ok);
+  opacity: 0;
+  animation: ping 2.4s var(--ease) infinite;
+}
+@keyframes ping {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  70%,
+  100% {
+    transform: scale(1.6);
+    opacity: 0;
+  }
 }
 .dot.warn {
   background: var(--warn);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--warn) 70%, transparent);
 }
 
 .alert {
   display: flex;
-  gap: 10px;
-  padding: 10px 12px;
-  background: #f08c6c14;
-  border: 1px solid #f08c6c59;
-  border-radius: 9px;
+  gap: 11px;
+  padding: 12px 14px;
+  background: linear-gradient(180deg, rgba(242, 145, 95, 0.1), rgba(242, 145, 95, 0.05));
+  border: 1px solid rgba(242, 145, 95, 0.28);
+  border-radius: var(--r);
   font-size: 13px;
-  line-height: 1.45;
-  color: #f6c7b8;
+  line-height: 1.5;
+  color: #f7cfbb;
 }
 .alert svg {
   flex-shrink: 0;
   margin-top: 1px;
-  color: #f4a68c;
+  color: var(--warn);
 }
 .alert .alert-body {
   flex: 1;
   display: flex;
-  flex-direction: column;
-  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 14px;
 }
 
 .progress {
-  height: 4px;
-  border-radius: 2px;
-  background: var(--line);
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.07);
   overflow: hidden;
 }
 .progress > div {
   height: 100%;
-  background: var(--accent);
-  transition: width 0.2s ease;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--accent-bright));
+  box-shadow: 0 0 12px var(--accent);
+  transition: width 0.35s var(--ease);
 }
 
 .empty-state {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
-  padding: 32px 12px;
+  gap: 12px;
+  padding: 40px 16px;
   text-align: center;
   color: var(--muted);
   font-size: 13px;
 }
 
-/* ---------- Чек-листы ---------- */
+/* ---------- Алгоритмы ---------- */
 
 .steps {
   list-style: none;
@@ -742,37 +977,62 @@ input[type='range']:focus {
   gap: 2px;
 }
 .steps label {
+  position: relative;
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  min-height: 36px;
-  padding: 8px;
-  border-radius: 8px;
+  gap: 11px;
+  min-height: 38px;
+  padding: 9px 10px;
+  border-radius: 11px;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--text-2);
   cursor: pointer;
+  transition:
+    background 0.18s,
+    color 0.18s;
+}
+.steps label:hover {
+  background: rgba(255, 255, 255, 0.035);
 }
 .steps label.next {
-  background: var(--accent-soft);
-  font-weight: 600;
+  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 22%, transparent), transparent 85%);
   color: var(--text);
+  font-weight: 600;
+}
+.steps label.next::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent-bright);
+  box-shadow: 0 0 10px var(--accent);
 }
 .steps label.done {
   color: var(--faint);
   text-decoration: line-through;
+  text-decoration-color: rgba(255, 255, 255, 0.25);
 }
 .steps input {
   margin-top: 1px;
 }
-/* Алгоритм без галочек — нумерованный список */
 .steps.plain li {
   display: flex;
-  gap: 10px;
-  padding: 7px 8px;
+  gap: 11px;
+  padding: 8px 10px;
   font-size: 14px;
-  line-height: 1.4;
+  line-height: 1.45;
   color: var(--text-2);
+}
+.steps .step-num {
+  flex-shrink: 0;
+  min-width: 20px;
+  color: var(--accent-text);
+  font-family: var(--font-mono);
+  font-weight: 600;
 }
 
 /* ---------- Карточки памяток (общие для окна и панели) ---------- */
@@ -780,22 +1040,34 @@ input[type='range']:focus {
 .memo {
   display: flex;
   flex-direction: column;
-  gap: 7px;
-  padding: 12px 14px;
-  background: var(--card);
+  gap: 9px;
+  padding: 15px 16px 14px;
+  background: var(--glass);
   border: 1px solid var(--line-2);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
+  box-shadow: var(--edge);
+  transition:
+    border-color 0.2s,
+    transform 0.25s var(--ease),
+    box-shadow 0.25s;
+}
+.memo:hover {
+  border-color: var(--line-3);
+  box-shadow:
+    var(--edge),
+    0 16px 34px -20px rgba(0, 0, 0, 0.9);
 }
 .memo-head {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
 }
 .memo-head .num {
   flex: 1;
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
+  color: var(--text-3);
 }
 .memo-head .icon-btn {
   width: 30px;
@@ -803,15 +1075,16 @@ input[type='range']:focus {
 }
 .memo h3 {
   margin: 0;
-  font-size: 14.5px;
-  font-weight: 600;
+  font-size: 15px;
+  font-weight: 650;
   line-height: 1.35;
+  letter-spacing: -0.005em;
 }
 .memo .penalty {
   margin: 0;
   font-size: 13px;
-  line-height: 1.45;
-  color: #bdb3b3;
+  line-height: 1.5;
+  color: var(--text-3);
 }
 .memo .penalty .label {
   color: var(--faint);
@@ -821,25 +1094,35 @@ input[type='range']:focus {
   padding-left: 18px;
   display: flex;
   flex-direction: column;
-  gap: 3px;
+  gap: 4px;
   font-size: 13px;
-  line-height: 1.45;
-  color: #cbc3c2;
+  line-height: 1.5;
+  color: var(--text-3);
+}
+.memo ul li::marker {
+  color: var(--accent-text);
 }
 .memo-part {
   display: flex;
   align-items: flex-start;
-  gap: 10px;
-  padding-top: 7px;
-  border-top: 1px solid var(--line);
+  gap: 11px;
+  padding: 9px 10px;
+  margin: 0 -4px;
+  border-radius: 11px;
+  background: rgba(0, 0, 0, 0.18);
+  border: 1px solid var(--line);
   cursor: pointer;
+  transition: border-color 0.15s;
+}
+.memo-part:hover {
+  border-color: var(--line-3);
 }
 .memo-part .part-body {
   flex: 1;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 .memo-part .part-text {
   font-size: 12px;
@@ -853,14 +1136,24 @@ input[type='range']:focus {
   display: flex;
   align-items: center;
   gap: 8px;
+  padding-top: 2px;
 }
 .memo-actions label {
   flex: 1;
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 9px;
   min-height: 30px;
-  font-size: 13px;
+  font-size: 12.5px;
   color: var(--text-3);
   cursor: pointer;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }

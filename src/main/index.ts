@@ -224,7 +224,29 @@ function setMode(mode: WindowMode): void {
   mainWin.setMode(mode)
 }
 
+/** Откуда начали расстановку: куда вернуться после «Готово» */
+let beforeLayout: { panel: PanelMode; window: boolean } | null = null
+let layoutStartedAt = 0
+
 function setPanel(mode: PanelMode): void {
+  if (mode === 'layout' && overlay.panel !== 'layout') {
+    beforeLayout = { panel: overlay.panel === 'interactive' ? 'passive' : overlay.panel, window: mainWin.mode === 'active' }
+    layoutStartedAt = Date.now()
+    // Сначала фокус оверлею, потом прячем окно: иначе Windows при скрытии окна
+    // отдаст фокус кому-то ещё, и расстановка тут же закроется
+    overlay.setPanel('layout')
+    if (beforeLayout.window) mainWin.win.hide()
+    return
+  }
+  if (overlay.panel === 'layout' && mode !== 'layout') {
+    const back = beforeLayout
+    beforeLayout = null
+    // «Готово» в расстановке возвращает панель и окно как было. Окно — первым, пока
+    // фокус у нашего оверлея: так Windows точно отдаст его окну приложения
+    if (back?.window) mainWin.setMode('active')
+    overlay.setPanel(back?.panel ?? 'hidden', false)
+    return
+  }
   overlay.setPanel(mode)
 }
 
@@ -234,11 +256,13 @@ function toggleWindow(): void {
 }
 
 function togglePanel(): void {
+  if (overlay.panel === 'layout') return
   if (overlay.panel !== 'hidden') setPanel('hidden')
   else if (hotkeysAllowed()) setPanel('passive')
 }
 
 function toggleInteract(): void {
+  if (overlay.panel === 'layout') return
   if (overlay.panel === 'interactive') setPanel('passive')
   else if (hotkeysAllowed()) setPanel('interactive')
 }
@@ -471,6 +495,13 @@ if (relaunchElevated()) {
     laws.loadCache()
 
     overlay = new OverlayWindow((panel) => pushState({ panel }))
+    // Ушли из расстановки (Alt+Tab) — оверлей не должен держать мышь всего экрана
+    overlay.win.on('blur', () => {
+      if (overlay.panel !== 'layout') return
+      // Сразу после входа фокус ещё «доезжает» — возвращаем его, а не закрываем
+      if (Date.now() - layoutStartedAt < 1000) overlay.setPanel('layout')
+      else setPanel('hidden')
+    })
     mainWin = new MainWindow((mode) => pushState({ mode }))
     // Путь к .ico, а не картинка: Windows берёт готовый размер под масштаб экрана
     tray = new Tray(appIcon())

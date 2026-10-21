@@ -206,12 +206,6 @@ function previewLine(text: string, profile: Profile): { cls: string; text: strin
   return { cls: 'say', text }
 }
 
-function autoSize(el: HTMLTextAreaElement | null): void {
-  if (!el) return
-  el.style.height = 'auto'
-  el.style.height = `${el.scrollHeight + 2}px`
-}
-
 function BindEditor({
   initial,
   isNew,
@@ -249,7 +243,6 @@ function BindEditor({
     requestAnimationFrame(() => {
       el?.focus()
       el?.setSelectionRange(start + token.length, start + token.length)
-      autoSize(el)
     })
   }
 
@@ -317,17 +310,13 @@ function BindEditor({
                   <textarea
                     ref={(el) => {
                       areas.current[i] = el
-                      autoSize(el)
                     }}
                     rows={1}
                     aria-label={`Строка ${i + 1}`}
                     placeholder="/me достал жетон · /do Жетон на груди. · или обычный текст"
                     value={l.text}
                     onFocus={() => setFocused(i)}
-                    onChange={(e) => {
-                      setLine(i, { text: e.target.value.replace(/\n/g, ' ') })
-                      autoSize(e.target)
-                    }}
+                    onChange={(e) => setLine(i, { text: e.target.value.replace(/\n/g, ' ') })}
                   />
                   <button
                     type="button"
