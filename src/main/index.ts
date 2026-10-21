@@ -6,6 +6,7 @@ import type { LawId } from '../shared/laws'
 import {
   activeProfile,
   HOTKEY_ACTIONS,
+  toastAllowed,
   isCheckable,
   renderLine,
   usesArticles,
@@ -72,6 +73,7 @@ function pushState(patch: Partial<AppState>): void {
 
 function toast(t: Toast): void {
   if (!overlay || overlay.win.isDestroyed()) return
+  if (!toastAllowed(settings.overlay.toasts, t.kind)) return
   overlay.raise()
   overlay.win.webContents.send(IPC.toast, t)
 }
@@ -398,6 +400,12 @@ function updateTray(): void {
         type: 'checkbox',
         checked: settings.testMode,
         click: (item) => patchSettings({ testMode: item.checked })
+      },
+      {
+        label: 'Уведомления в игре',
+        type: 'checkbox',
+        checked: settings.overlay.toasts !== 'off',
+        click: (item) => patchSettings({ overlay: { ...settings.overlay, toasts: item.checked ? 'all' : 'off' } })
       },
       { label: 'Обновить законы с форума', click: () => void laws.refresh() },
       { label: 'Перезапустить перехват клавиш', click: () => hotkeys.restart('из меню трея') },

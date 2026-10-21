@@ -7,6 +7,7 @@ import {
   reservedKeyNote,
   SCALE_MAX,
   SCALE_MIN,
+  TOAST_MODES,
   TOAST_PRESETS,
   toastAnchor,
   UNITS,
@@ -334,11 +335,21 @@ function ToastSection() {
   const o = useSettings().overlay
   const patchSettings = useStore((s) => s.patchSettings)
   const current = TOAST_PRESETS.find((p) => Math.abs(p.x - o.toastX) < 0.6 && Math.abs(p.y - o.toastY) < 0.6)
+  const mode = TOAST_MODES.find((m) => m.value === o.toasts) ?? TOAST_MODES[0]
   return (
     <Section title="Уведомления в игре" icon="chat">
+      <div className="field">
+        Показывать
+        <Segmented
+          label="Какие уведомления показывать"
+          value={o.toasts}
+          options={TOAST_MODES.map((m) => ({ value: m.value, label: m.label }))}
+          onChange={(toasts) => patchSettings((s) => ({ ...s, overlay: { ...s.overlay, toasts } }))}
+        />
+        <span className="hint">{mode.hint}. Меняется сразу, без «Сохранить»; быстро выключить — в меню трея.</span>
+      </div>
       <p className="hint" style={{ margin: 0 }}>
-        Где появляются уведомления отыгровок. Выберите место на схеме экрана или расставьте мышью прямо поверх игры —
-        вместе с панелью. Меняется сразу, без «Сохранить».
+        Где появляются уведомления: место на схеме экрана или расстановка мышью прямо поверх игры — вместе с панелью.
       </p>
       <div className="screen-map" role="group" aria-label="Место уведомлений на экране">
         {TOAST_PRESETS.map((p) => {

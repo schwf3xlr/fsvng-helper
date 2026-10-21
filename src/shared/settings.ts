@@ -68,6 +68,22 @@ export function reservedKeyNote(hotkey: string | null): string | null {
 
 export type PanelTab = 'memos' | 'search' | 'checklist' | 'binds'
 
+/** Уведомления в игре: все, только предупреждения и ошибки, выключены */
+export type ToastMode = 'all' | 'important' | 'off'
+
+export const TOAST_MODES: { value: ToastMode; label: string; hint: string }[] = [
+  { value: 'all', label: 'Все', hint: 'Ход отправки отыгровки, готово, предупреждения' },
+  { value: 'important', label: 'Только важные', hint: 'Только когда что-то не так: отыгровка не ушла, игра не в фокусе' },
+  { value: 'off', label: 'Выключены', hint: 'Ничего не всплывает поверх игры' }
+]
+
+/** Показывать ли уведомление такого вида при выбранном режиме */
+export function toastAllowed(mode: ToastMode, kind: 'info' | 'run' | 'ok' | 'warn' | 'error'): boolean {
+  if (mode === 'off') return false
+  if (mode === 'important') return kind === 'warn' || kind === 'error'
+  return true
+}
+
 export type InputMethod = 'keys' | 'paste'
 
 export interface Settings {
@@ -110,6 +126,8 @@ export interface Settings {
      */
     toastX: number
     toastY: number
+    /** Какие уведомления показывать */
+    toasts: ToastMode
   }
   game: {
     processNames: string[]
@@ -274,9 +292,10 @@ const line = (text: string): BindLine => ({ text, delayMs: null })
 /**
  * Версия настроек для разовых обновлений:
  *   2 — новый набор стандартных отыгровок (0.4.0);
- *   3 — ввод текста вставкой из буфера по умолчанию (0.5.0).
+ *   3 — ввод текста вставкой из буфера по умолчанию (0.5.0);
+ *   4 — алгоритм «Изъятие лицензии» в наборе по умолчанию (0.5.1).
  */
-export const SETTINGS_REV = 3
+export const SETTINGS_REV = 4
 
 export const DEFAULT_BINDS: Bind[] = [
   {
@@ -392,6 +411,17 @@ export const DEFAULT_CHECKLISTS: Checklist[] = [
       'Тайзер — после одного предупреждения',
       'После выстрела вызвать скорую или оказать помощь самому'
     ]
+  },
+  {
+    id: 'license',
+    title: 'Изъятие лицензии',
+    source: 'п. 3 ч. 1 ст. 11 34-ФЗ',
+    steps: [
+      'Принимаете вызов, выезжаете, представляетесь',
+      'Выясняете, в чём выразилось нарушение',
+      'Факт нарушения должен быть установлен (п. 3 ч. 1 ст. 11): вы видели его сами или вам показали видеофиксацию',
+      'Аннулируете лицензию'
+    ]
   }
 ]
 
@@ -449,7 +479,8 @@ export function defaultSettings(): Settings {
       tab: 'memos',
       checklistId: 'detention',
       toastX: 1.5,
-      toastY: 34
+      toastY: 34,
+      toasts: 'all'
     },
     game: { processNames: ['GTA5.exe', 'GTA5_Enhanced.exe'], classNames: ['grcWindow'] },
     testMode: false,

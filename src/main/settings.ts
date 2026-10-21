@@ -6,6 +6,7 @@ import {
   ACCENTS,
   DEFAULT_BINDS,
   DEFAULT_BINDS_V1,
+  DEFAULT_CHECKLISTS,
   defaultSettings,
   SCALE_MAX,
   SCALE_MIN,
@@ -101,6 +102,11 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
   const rev = old.rev ?? old.bindsRev ?? 1
   if (raw.binds && rev < 2) s.binds = migrateBinds(s.binds, s.hotkeys)
   if (raw.chat && rev < 3) s.chat.method = 'paste'
+  // Новые стандартные алгоритмы добавляются к своим, ничего не удаляя
+  if (raw.checklists && rev < 4 && !s.checklists.some((c) => c.id === 'license')) {
+    s.checklists = [...s.checklists, structuredClone(DEFAULT_CHECKLISTS.find((c) => c.id === 'license')!)]
+  }
+  if (!['all', 'important', 'off'].includes(s.overlay.toasts)) s.overlay.toasts = 'all'
   delete (s as Partial<Settings> & { bindsRev?: number }).bindsRev
   s.rev = SETTINGS_REV
   return s
