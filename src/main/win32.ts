@@ -55,7 +55,12 @@ const SetWindowLongPtrW = user32.func('SetWindowLongPtrW', 'intptr_t', ['uintptr
 const GetLastInputInfo = user32.func('GetLastInputInfo', 'bool', ['void *'])
 const GetTickCount = kernel32.func('GetTickCount', 'uint32_t', [])
 const GetCurrentProcess = kernel32.func('GetCurrentProcess', 'void *', [])
-const SetProcessInformation = kernel32.func('SetProcessInformation', 'bool', ['void *', 'int32_t', 'void *', 'uint32_t'])
+let SetProcessInformation: ((hProcess: unknown, infoClass: number, info: Buffer, size: number) => boolean) | null = null
+try {
+  SetProcessInformation = kernel32.func('SetProcessInformation', 'bool', ['void *', 'int32_t', 'void *', 'uint32_t'])
+} catch {
+  SetProcessInformation = null
+}
 const OpenProcess = kernel32.func('OpenProcess', 'void *', ['uint32_t', 'bool', 'uint32_t'])
 const QueryFullProcessImageNameW = kernel32.func('QueryFullProcessImageNameW', 'bool', [
   'void *',
@@ -72,6 +77,7 @@ const GetWindowRect = user32.func('GetWindowRect', 'bool', ['uintptr_t', koffi.o
 const INPUT_KEYBOARD = 1
 const KEYEVENTF_KEYUP = 0x0002
 const KEYEVENTF_UNICODE = 0x0004
+const KEYEVENTF_SCANCODE = 0x0008
 const MAPVK_VK_TO_VSC = 0
 const PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
 const HWND_TOPMOST = -1
@@ -82,13 +88,15 @@ const SWP_NOACTIVATE = 0x0010
 const QUNS_RUNNING_D3D_FULL_SCREEN = 3
 const INPUT_SIZE = koffi.sizeof(INPUT)
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
 export type Hwnd = number | bigint
 
 export const VK = {
   Enter: 0x0d,
-  Shift: 0x10,
-  Ctrl: 0x11,
-  Alt: 0x12,
+  Shift: 0xa0, // VK_LSHIFT
+  Ctrl: 0xa2,  // VK_LCONTROL
+  Alt: 0xa4,   // VK_LMENU
   Escape: 0x1b,
   LWin: 0x5b,
   RWin: 0x5c,
@@ -99,6 +107,7 @@ export const VK = {
 export function vkFromName(name: string): number {
   const n = name.trim()
   if (/^[A-Za-z]$/.test(n)) return n.toUpperCase().charCodeAt(0)
+  if (/^[еЕ]$/.test(n)) return 0x45 // русская Е -> VK_E
   if (/^[0-9]$/.test(n)) return n.charCodeAt(0)
   const f = /^F([1-9]|1[0-9]|2[0-4])$/i.exec(n)
   if (f) return 0x70 + Number(f[1]) - 1
@@ -117,14 +126,14 @@ export function vkFromName(name: string): number {
 }
 
 function keyInput(vk: number, up: boolean) {
+  const scan = MapVirtualKeyW(vk, MAPVK_VK_TO_VSC)
   return {
     type: INPUT_KEYBOARD,
     u: {
       ki: {
-        wVk: vk,
-        // Игры часто смотрят на скан-код, поэтому отправляем и его — как AHK
-        wScan: MapVirtualKeyW(vk, MAPVK_VK_TO_VSC),
-        dwFlags: up ? KEYEVENTF_KEYUP : 0,
+        wVk: 0,
+        wScan: scan,
+        dwFlags: KEYEVENTF_SCANCODE | (up ? KEYEVENTF_KEYUP : 0),
         time: 0,
         dwExtraInfo: 0
       }
@@ -155,8 +164,10 @@ function send(inputs: object[]): void {
   }
 }
 
-export function tapKey(vk: number): void {
-  send([keyInput(vk, false), keyInput(vk, true)])
+export async function tapKey(vk: number, holdMs = 30): Promise<void> {
+  send([keyInput(vk, false)])
+  await sleep(holdMs)
+  send([keyInput(vk, true)])
 }
 
 export function releaseKey(vk: number): void {
@@ -164,8 +175,14 @@ export function releaseKey(vk: number): void {
 }
 
 /** Ctrl+V */
-export function paste(): void {
-  send([keyInput(VK.Ctrl, false), keyInput(VK.V, false), keyInput(VK.V, true), keyInput(VK.Ctrl, true)])
+export async function paste(holdMs = 30): Promise<void> {
+  send([keyInput(VK.Ctrl, false)])
+  await sleep(15)
+  send([keyInput(VK.V, false)])
+  await sleep(holdMs)
+  send([keyInput(VK.V, true)])
+  await sleep(15)
+  send([keyInput(VK.Ctrl, true)])
 }
 
 /** Печатает текст юникод-символами — раскладка клавиатуры не важна */
@@ -236,8 +253,8 @@ export function clearTopmost(hwnd: Hwnd): void {
 }
 
 /**
- * Сделать окно активным. Windows не даёт фоновому процессу забрать фокус,
- * поэтому на время подключаемся к вводу текущего активного окна.
+- Сделать окно активным. Windows не даёт фоновому процессу забрать фокус,
+- поэтому на время подключаемся к вводу текущего активного окна.
  */
 export function forceForeground(hwnd: Hwnd): boolean {
   if (!hwnd || !IsWindow(hwnd)) return false
@@ -282,9 +299,9 @@ const GWL_EXSTYLE = -20
 const WS_EX_NOACTIVATE = 0x08000000
 
 /**
- * Можно ли активировать окно (забрать фокус у игры). Ставим флаг сами:
- * BrowserWindow.setFocusable(false) внутри делает активным следующее окно —
- * обычно панель задач, — и игра теряет фокус, показывает курсор.
+- Можно ли активировать окно (забрать фокус у игры). Ставим флаг сами:
+- BrowserWindow.setFocusable(false) внутри делает активным следующее окно —
+- обычно панель задач, — и игра теряет фокус, показывает курсор.
  */
 export function setNoActivate(hwnd: Hwnd, on: boolean): void {
   const style = Number(GetWindowLongPtrW(hwnd, GWL_EXSTYLE))
@@ -301,10 +318,11 @@ export function msSinceLastInput(): number {
 }
 
 /**
- * Отказ от «эффективного режима» Windows 11: свёрнутому в трей процессу иначе урезают
- * процессор, хук клавиатуры не успевает ответить, и Windows молча его снимает.
+- Отказ от «эффективного режима» Windows 11: свёрнутому в трей процессу иначе урезают
+- процессор, хук клавиатуры не успевает ответить, и Windows молча его снимает.
  */
 export function disablePowerThrottling(): void {
+  if (!SetProcessInformation) return
   const state = Buffer.alloc(12)
   state.writeUInt32LE(1, 0) // PROCESS_POWER_THROTTLING_CURRENT_VERSION
   state.writeUInt32LE(1, 4) // ControlMask: EXECUTION_SPEED

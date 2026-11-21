@@ -72,6 +72,56 @@ function mergeDetentionAndArrest(s: Settings): Settings {
   return { ...s, checklists, checks, overlay: { ...s.overlay, checklistId } }
 }
 
+/**
+ * Стандартный «Задержание и Арест» до 0.5.4 — 11 шагов, среди них «Предложить
+ * государственного адвоката». По этим шагам узнаём нетронутый алгоритм: у кого
+ * пользователь ничего не менял, тому заменяем на новую версию без адвоката.
+ */
+const OLD_DETENTION_STEPS = [
+  'Есть основание по ст. 7 ПК: застигнут, 3+ очевидца, следы, видео, розыск или ориентировка',
+  'Спецсредства при необходимости: наручники, дубинка, ЭШУ',
+  'Представиться: удостоверение, должность, звание, фамилия (в маске — жетон, номер, позывной)',
+  'Огласить статьи, которые вменяются',
+  'Предложить государственного адвоката (ст. 8.3 ПК)',
+  'Личный обыск (ст. 19 ПК)',
+  'Доставить в отдел — на всё задержание не больше 60 минут',
+  'Сообщить об аресте, назвать статьи и кратко их описать',
+  'Личный обыск, изъять нелегальное в зиплок',
+  'Заполнить личное дело: статьи или части статей с указанием кодекса',
+  'Сохранить видеозапись 72 часа (ст. 10.4 ПК)'
+]
+
+/**
+ * 0.5.4: у «Задержание и Арест» убран шаг про адвоката, остальные стандартные
+ * алгоритмы (госслужащий, транспорт, оружие, лицензия) — «просто список» без галочек.
+ * Трогаем только нетронутые: изменённые пользователем остаются как есть.
+ */
+function dropAdvocateAndSimplifyLists(s: Settings): Settings {
+  const plain = new Set(['official', 'vehicle', 'weapon', 'license'])
+  let detentionChanged = false
+  const checklists = s.checklists.map((c) => {
+    if (c.id === 'detention' && JSON.stringify(c.steps) === JSON.stringify(OLD_DETENTION_STEPS)) {
+      detentionChanged = true
+      return structuredClone(DEFAULT_CHECKLISTS.find((d) => d.id === 'detention')!)
+    }
+    if (plain.has(c.id) && c.checkable !== false) {
+      const fresh = DEFAULT_CHECKLISTS.find((d) => d.id === c.id)
+      if (fresh && JSON.stringify(c.steps) === JSON.stringify(fresh.steps)) {
+        return { ...c, checkable: false }
+      }
+    }
+    return c
+  })
+  if (!detentionChanged) return { ...s, checklists }
+  // Был шаг 4 «адвокат», шаги ниже сдвинулись на один — пересчитываем отметки
+  const checks = { ...s.checks }
+  if (checks.detention) {
+    checks.detention = checks.detention.filter((i) => i !== 4).map((i) => (i > 4 ? i - 1 : i))
+    if (checks.detention.length === 0) delete checks.detention
+  }
+  return { ...s, checklists, checks }
+}
+
 /** Достраивает настройки из файла значениями по умолчанию (новые поля в новых версиях) */
 export function normalizeSettings(raw: Partial<Settings>): Settings {
   const def = defaultSettings()
@@ -130,6 +180,7 @@ export function normalizeSettings(raw: Partial<Settings>): Settings {
     s.checklists = [...s.checklists, structuredClone(DEFAULT_CHECKLISTS.find((c) => c.id === 'license')!)]
   }
   if (raw.checklists && rev < 5) Object.assign(s, mergeDetentionAndArrest(s))
+  if (raw.checklists && rev < 6) Object.assign(s, dropAdvocateAndSimplifyLists(s))
   if (!['all', 'important', 'off'].includes(s.overlay.toasts)) s.overlay.toasts = 'all'
   delete (s as Partial<Settings> & { bindsRev?: number }).bindsRev
   s.rev = SETTINGS_REV

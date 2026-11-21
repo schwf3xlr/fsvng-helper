@@ -26,8 +26,8 @@ const MODIFIER_VKS = [VK.Alt, VK.Ctrl, VK.Shift, VK.LWin, VK.RWin]
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))
 
 /**
- * Ждём, пока игрок отпустит Alt/Ctrl/Shift от хоткея: иначе игра получит
- * Alt+T вместо T. Если держит слишком долго — отпускаем модификаторы сами.
+- Ждём, пока игрок отпустит Alt/Ctrl/Shift от хоткея: иначе игра получит
+- Alt+T вместо T. Если держит слишком долго — отпускаем модификаторы сами.
  */
 async function waitModifiersReleased(timeoutMs = 1500): Promise<void> {
   const deadline = Date.now() + timeoutMs
@@ -62,32 +62,32 @@ export class BindRunner {
       await waitModifiersReleased()
       checkpoint()
 
-      tapKey(vkFromName(chat.openKey))
-      await sleep(chat.openDelayMs)
+      await tapKey(vkFromName(chat.openKey))
+      await sleep(Math.max(chat.openDelayMs, 120))
 
       for (let i = 0; i < lines.length; i++) {
         checkpoint()
         if (chat.method === 'paste') {
           await clipboard.writeText(lines[i].text)
-          paste()
+          await paste()
           // Игра читает буфер по Ctrl+V — даём ей время до Enter
-          await sleep(60)
+          await sleep(100)
         } else {
           typeText(lines[i].text)
         }
-        if (enterAfterEach) tapKey(VK.Enter)
+        if (enterAfterEach) await tapKey(VK.Enter)
         hooks.onProgress(i + 1, lines.length)
         await sleep(lines[i].delayMs)
       }
 
       if (enterAfterEach && chat.closeWithEnter) {
         checkpoint()
-        tapKey(VK.Enter)
+        await tapKey(VK.Enter)
       }
     } finally {
       if (savedClipboard !== null) {
         // Вставка в игре могла ещё не прочитать буфер — возвращаем его чуть позже
-        setTimeout(() => void clipboard.writeText(savedClipboard), 300)
+        setTimeout(() => void clipboard.writeText(savedClipboard), 500)
       }
       this.running = null
     }
